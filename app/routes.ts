@@ -47,6 +47,8 @@ export default [
     route("settings", "routes/settings.tsx"),
     route("team", "routes/team.tsx"),
     route("redeem/:code", "routes/redeem.$code.tsx"),
+    // PROTOTYPE (#24): variant B's inbox page. Throwaway.
+    route("notifications", "routes/notifications.prototype.tsx"),
   ]),
   route("signup", "routes/signup.tsx"),
   route("login", "routes/login.tsx"),
@@ -54,4 +56,9 @@ export default [
   route("api/logout", "routes/api.logout.ts"),
   route("api/video-tracking", "routes/api.video-tracking.ts"),
   route("api/set-dev-country", "routes/api.set-dev-country.ts"),
+  // PROTOTYPE (#24): "Send me one" test Notification. Throwaway.
+  route(
+    "api/notification-feed-prototype",
+    "routes/api.notification-feed-prototype.ts"
+  ),
 ] satisfies RouteConfig;
