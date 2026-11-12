@@ -2,7 +2,8 @@
 //
 // Three variants of the Notification Feed in the real app layout, switchable
 // via ?variant=A|B|C and the floating bar at the bottom.
-//   A  Bell popover     bell in the sidebar header, unseen count, popover
+//   A  Bell popover     bell in the sidebar header, unread count, popover
+//                       (the winner; its badge was switched to unread)
 //   B  Inbox page       sidebar nav item, unread count, /notifications page
 //   C  Activity drawer  bell by the avatar, dot only, right drawer + toasts
 import { useEffect } from "react";

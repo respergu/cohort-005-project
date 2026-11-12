@@ -1,9 +1,11 @@
 // PROTOTYPE, throwaway (respergu/cohort-005-project#24).
 //
-// Variant A: "Bell popover"
+// Variant A: "Bell popover". THE WINNER: picked on #24, with the badge
+// switched from unseen to unread.
 // - Placement: bell beside the Cadence wordmark in the sidebar header
-// - Badge: red number = UNSEEN count. Opening the popover marks everything
-//   seen, so the badge clears on open
+// - Badge: red number = UNREAD count. Opening the popover marks everything
+//   seen in Knock but leaves the count alone; only reading a Notification
+//   (click, or "Mark all as read") brings it down
 // - Rows: compact, icon by kind, two-line text, course + time; unread rows
 //   are tinted with a blue dot until clicked
 // - Click: marks read, closes, navigates. No full page, no archive
@@ -44,7 +46,7 @@ export function VariantAHeaderBell() {
     <Popover.Root open={open} onOpenChange={onOpenChange}>
       <Popover.Trigger asChild>
         <button
-          aria-label={`Notifications${feed.unseenCount ? `, ${feed.unseenCount} new` : ""}`}
+          aria-label={`Notifications${feed.unreadCount ? `, ${feed.unreadCount} unread` : ""}`}
           className={cn(
             "relative rounded-md p-1.5 text-sidebar-foreground/60 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
             open && "bg-sidebar-accent text-sidebar-accent-foreground"
@@ -52,7 +54,7 @@ export function VariantAHeaderBell() {
         >
           <Bell className="size-4" />
           <CountBadge
-            count={feed.unseenCount}
+            count={feed.unreadCount}
             className="absolute -right-1 -top-1"
           />
         </button>
