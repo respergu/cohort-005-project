@@ -27,7 +27,7 @@ After a push, the Knock CLI rewrites `workflow.json` and `layout.json` in its ow
 
 | When | What | Touches Production? |
 |---|---|---|
-| `npm run knock:push`, from a branch | Category catalog, Development's variable values, push and commit to Development, Development's default preference set | Only the category catalog, which is project-wide. Adding a name changes no workflow or preference. |
+| `npm run knock:push`, from a branch | Category catalog, push and commit to Development, Development's default preference set, Development's variable values | Only the category catalog, which is project-wide. Adding a name changes no workflow or preference. |
 | A pull request that touches `knock/` (`.github/workflows/knock-validate.yml`) | Offline checks, then `knock layout validate` and `knock workflow validate`. On a fork's pull request there's no secret, so Knock's checks are skipped with a notice. | No |
 | A merge to main (`.github/workflows/knock-sync.yml`) | 1. Category catalog, `knock variable push`, and the default preference set in both environments. 2. Push and commit everything to Development as "Sync with git commit `<sha>`". 3. `knock commit promote --to=production`. | Yes. The promote is the only step that changes Production's workflows. |
 
