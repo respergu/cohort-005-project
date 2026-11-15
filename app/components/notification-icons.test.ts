@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { Bell, Receipt, Ticket, TicketCheck } from "lucide-react";
+import {
+  Bell,
+  MessageCircleQuestionMark,
+  MessageSquareReply,
+  Receipt,
+  Ticket,
+  TicketCheck,
+} from "lucide-react";
 import {
   notificationIconFor,
   pickNotificationIcon,
@@ -9,6 +16,16 @@ import {
 describe("notificationIconFor", () => {
   it("shows a receipt for Refund Request raised", () => {
     expect(notificationIconFor("refund-request-raised", {}).Icon).toBe(Receipt);
+  });
+
+  it("shows a question mark for New Question", () => {
+    expect(notificationIconFor("new-question", {}).Icon).toBe(
+      MessageCircleQuestionMark
+    );
+  });
+
+  it("shows a reply bubble for Reply", () => {
+    expect(notificationIconFor("reply", {}).Icon).toBe(MessageSquareReply);
   });
 
   it("falls back to a bell for a workflow it doesn't know", () => {

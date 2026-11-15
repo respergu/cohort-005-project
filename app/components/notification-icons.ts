@@ -1,4 +1,10 @@
-import { Bell, Receipt, type LucideIcon } from "lucide-react";
+import {
+  Bell,
+  MessageCircleQuestionMark,
+  MessageSquareReply,
+  Receipt,
+  type LucideIcon,
+} from "lucide-react";
 import type { WorkflowKey } from "~/lib/notification-workflows";
 
 // ─── Notification Feed icons ───
@@ -26,6 +32,14 @@ export const notificationIcons = {
   "refund-request-raised": {
     Icon: Receipt,
     tone: "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300",
+  },
+  "new-question": {
+    Icon: MessageCircleQuestionMark,
+    tone: "bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300",
+  },
+  reply: {
+    Icon: MessageSquareReply,
+    tone: "bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300",
   },
 } satisfies Record<WorkflowKey, IconRule>;
 

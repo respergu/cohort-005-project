@@ -32,6 +32,30 @@ export const notificationWorkflows = {
       reason: z.string().min(1),
     })
     .strict(),
+
+  /** To the course's Instructor when anyone else asks a Question (#50). */
+  "new-question": z
+    .object({
+      ...everyTrigger,
+      /** The Batch step's key: one batch per course, per Instructor. */
+      course_id: z.number().int(),
+      lesson_title: z.string().min(1),
+      asker_name: z.string().min(1),
+      // Knock's batch merge would cut anything longer.
+      question_excerpt: z.string().min(1).max(256),
+    })
+    .strict(),
+
+  /** To a Question's author when someone replies to it (#50). */
+  reply: z
+    .object({
+      ...everyTrigger,
+      lesson_title: z.string().min(1),
+      // The replier's name only: data reaches the author's browser as-is.
+      replier_name: z.string().min(1),
+      reply_excerpt: z.string().min(1).max(256),
+    })
+    .strict(),
 } satisfies Record<string, z.ZodType<NotificationData>>;
 
 export type WorkflowKey = keyof typeof notificationWorkflows;
