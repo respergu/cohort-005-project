@@ -8,7 +8,8 @@ import {
   type FakeNotificationTransport,
 } from "~/test/fake-notification-transport";
 import type { NotificationUser } from "~/db/schema";
-import { listOutboxRows, queueNotification } from "./notification-outbox.server";
+import { listOutboxRows } from "~/test/outbox";
+import { queueNotification } from "./notification-outbox.server";
 import {
   createNotificationSender,
   sendInBackground,

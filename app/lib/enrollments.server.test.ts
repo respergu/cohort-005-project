@@ -4,7 +4,7 @@ import { createTestDb, seedBaseData } from "~/test/setup";
 import * as schema from "~/db/schema";
 import { UserRole } from "~/db/schema";
 import { claimSeat, makeIndividualPurchase } from "./enrollments.server";
-import { listOutboxRows } from "./notification-outbox.server";
+import { listOutboxRows } from "~/test/outbox";
 
 const NOW = new Date(2026, 9, 6, 12, 0, 0);
 

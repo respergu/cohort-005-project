@@ -14,7 +14,7 @@ import {
   listTeamLicences,
   raiseRefundRequest,
 } from "./refunds.server";
-import { listOutboxRows } from "./notification-outbox.server";
+import { listOutboxRows } from "~/test/outbox";
 import { createNotificationSender } from "./notification-sender.server";
 import {
   fakeNotificationTransport,

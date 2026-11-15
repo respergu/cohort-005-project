@@ -1,4 +1,3 @@
-import { asc } from "drizzle-orm";
 import { notificationOutbox, type NotificationUser } from "~/db/schema";
 import type { Queryable } from "~/db/types";
 import {
@@ -68,12 +67,3 @@ export function queueNotification<K extends WorkflowKey>(
 }
 
 export type OutboxRow = typeof notificationOutbox.$inferSelect;
-
-/** Every row still in the outbox, waiting or parked, oldest first. */
-export function listOutboxRows(db: Queryable): OutboxRow[] {
-  return db
-    .select()
-    .from(notificationOutbox)
-    .orderBy(asc(notificationOutbox.id))
-    .all();
-}
