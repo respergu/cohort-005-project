@@ -12,6 +12,7 @@ import {
   SEAT_ON_HOLD,
   SEAT_REFUNDED,
 } from "~/lib/enrollments.server";
+import { sendInBackground } from "~/lib/notification-sender.server";
 import { Card, CardContent } from "~/components/ui/card";
 import { Button } from "~/components/ui/button";
 import { Ticket, AlertCircle, CheckCircle2, Globe } from "lucide-react";
@@ -126,11 +127,15 @@ export async function action({ params, request }: Route.ActionArgs) {
   }
 
   const userCountry = await resolveCountry(request);
-  const result = claimSeat(db, code, currentUserId, userCountry);
+  const result = claimSeat(db, code, currentUserId, userCountry, new Date());
 
   if (!result.ok) {
     return data({ error: result.error }, { status: 400 });
   }
+
+  // The Seat claim and its Notification rows have committed. Sending them
+  // doesn't hold up the response, and can't fail it.
+  sendInBackground(result.outboxRowIds);
 
   const course = getCourseById(result.enrollment.courseId);
   if (!course) {
