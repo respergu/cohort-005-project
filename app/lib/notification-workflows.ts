@@ -51,7 +51,7 @@ export const notificationWorkflows = {
     .object({
       ...everyTrigger,
       /** The Batch step's key: one batch per course, per Instructor. */
-      course_id: z.number().int(),
+      course_id: z.number().int().min(1),
       lesson_title: z.string().min(1),
       asker_name: z.string().min(1),
       // Knock's batch merge would cut anything longer.

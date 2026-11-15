@@ -57,7 +57,8 @@
         "pattern": "^/"
       },
       "course_id": {
-        "type": "integer"
+        "type": "integer",
+        "minimum": 1
       },
       "lesson_title": {
         "type": "string",
