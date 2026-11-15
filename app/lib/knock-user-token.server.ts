@@ -1,12 +1,10 @@
 import { signUserToken } from "@knocklabs/node";
 import { data } from "react-router";
 import { eq } from "drizzle-orm";
-import type { BetterSQLite3Database } from "drizzle-orm/better-sqlite3";
 import * as schema from "~/db/schema";
+import type { Db } from "~/db/types";
 import type { KnockClientConfig } from "~/lib/knock-browser";
 import { requireUserId } from "~/lib/access.server";
-
-type Db = BetterSQLite3Database<typeof schema>;
 
 // ─── Knock user tokens ───
 // The browser reads the Notification Feed (and saves preferences) straight

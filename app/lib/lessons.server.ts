@@ -1,6 +1,4 @@
 import { asc, eq, sql } from "drizzle-orm";
-import type { BetterSQLite3Database } from "drizzle-orm/better-sqlite3";
-import * as schema from "~/db/schema";
 import {
   CourseStatus,
   courses,
@@ -9,6 +7,7 @@ import {
   modules,
   users,
 } from "~/db/schema";
+import type { Db, Tx, Queryable } from "~/db/types";
 import {
   queueNotification,
   toNotificationUser,
@@ -20,10 +19,6 @@ import {
 //
 // Every function takes the database first, so tests can hand in an in-memory
 // one. Uses positional parameters (project convention).
-
-type Db = BetterSQLite3Database<typeof schema>;
-type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
-type Queryable = Db | Tx;
 
 export type Lesson = typeof lessons.$inferSelect;
 

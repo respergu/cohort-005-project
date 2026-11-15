@@ -1,7 +1,6 @@
 import { asc } from "drizzle-orm";
-import type { BetterSQLite3Database } from "drizzle-orm/better-sqlite3";
-import type * as schema from "~/db/schema";
 import { notificationOutbox, type NotificationUser } from "~/db/schema";
+import type { Queryable } from "~/db/types";
 import {
   notificationWorkflows,
   type WorkflowData,
@@ -14,10 +13,6 @@ import {
 // together. Domain functions never send: after the commit, the route hands the
 // returned row ids to sendInBackground (notification-sender.server.ts).
 // See docs/adr/0014 and docs/adr/0015.
-
-type Db = BetterSQLite3Database<typeof schema>;
-type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
-export type Queryable = Db | Tx;
 
 /** Knock takes at most this many recipients in one trigger. */
 export const MAX_RECIPIENTS_PER_TRIGGER = 1000;

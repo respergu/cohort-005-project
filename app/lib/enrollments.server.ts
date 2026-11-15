@@ -1,10 +1,11 @@
 import { and, eq, isNull, sql } from "drizzle-orm";
 import { coupons, courses, enrollments, purchases, users } from "~/db/schema";
+import type { Db, Tx } from "~/db/types";
 import {
   queueNotification,
   toNotificationUser,
 } from "~/lib/notification-outbox.server";
-import { getSeatAvailability, type Db } from "~/lib/refunds.server";
+import { getSeatAvailability } from "~/lib/refunds.server";
 
 // ─── Enrollments ───
 // The two ways a Student gets an Enrollment: claiming a Seat, and buying the
@@ -23,8 +24,6 @@ export const SEAT_ON_HOLD =
 export const SEAT_REFUNDED =
   "This seat is no longer available. Ask the person who shared it with you.";
 const ALREADY_ENROLLED = "You are already enrolled in this course";
-
-type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
 
 function isEnrolled(tx: Tx, userId: number, courseId: number) {
   const existing = tx

@@ -1,7 +1,6 @@
 import { and, asc, eq, inArray, isNull, lte, or } from "drizzle-orm";
-import type { BetterSQLite3Database } from "drizzle-orm/better-sqlite3";
-import type * as schema from "~/db/schema";
 import { notificationOutbox, OutboxRowStatus } from "~/db/schema";
+import type { Db } from "~/db/types";
 import { db as serverDb } from "~/db";
 import type { OutboxRow } from "~/lib/notification-outbox.server";
 import {
@@ -24,8 +23,6 @@ import {
 // exponential backoff for about an hour, then parked. Any other 4xx parks the
 // row at once. Every row, waiting or parked, is dropped 24 hours after it was
 // written. Parking and dropping are only ever log lines.
-
-type Db = BetterSQLite3Database<typeof schema>;
 
 export type NotificationSender = {
   /** Sends these rows, if they are still waiting and due. */

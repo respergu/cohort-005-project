@@ -7,7 +7,7 @@ import {
   teams,
   TeamMemberRole,
 } from "~/db/schema";
-import type { Db } from "~/lib/refunds.server";
+import type { Db, Tx } from "~/db/types";
 
 // ─── Team Licences ───
 // Buying a Team Licence: a Purchase a Team Admin makes for others. It grants
@@ -15,8 +15,6 @@ import type { Db } from "~/lib/refunds.server";
 //
 // Every function takes the database first, so tests can hand in an in-memory
 // one.
-
-type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
 
 /** The buyer's team, or a new one with them as its Team Admin. */
 function getOrCreateTeam(tx: Tx, teamAdminId: number) {
