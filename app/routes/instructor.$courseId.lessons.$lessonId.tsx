@@ -29,6 +29,7 @@ import {
 import { data, isRouteErrorResponse } from "react-router";
 import { z } from "zod";
 import { parseFormData, parseParams } from "~/lib/validation";
+import { updateLesson } from "~/lib/lessons.server";
 
 const instructorLessonParamsSchema = z.object({
   courseId: z.coerce.number().int(),
@@ -61,33 +62,6 @@ function getLessonById(id: number) {
 
 function getQuizByLessonId(lessonId: number) {
   return db.select().from(quizzes).where(eq(quizzes.lessonId, lessonId)).get();
-}
-
-function updateLesson(
-  id: number,
-  title: string | null,
-  content: string | null,
-  videoUrl: string | null,
-  durationMinutes: number | null,
-  githubRepoUrl: string | null = null
-) {
-  const updates: Record<string, unknown> = {};
-  if (title !== null) updates.title = title;
-  if (content !== null) updates.content = content;
-  if (videoUrl !== null) updates.videoUrl = videoUrl;
-  if (durationMinutes !== null) updates.durationMinutes = durationMinutes;
-  if (githubRepoUrl !== null) updates.githubRepoUrl = githubRepoUrl;
-
-  if (Object.keys(updates).length === 0) {
-    return getLessonById(id);
-  }
-
-  return db
-    .update(lessons)
-    .set(updates)
-    .where(eq(lessons.id, id))
-    .returning()
-    .get();
 }
 
 export function meta({ loaderData }: Route.MetaArgs) {
@@ -223,14 +197,13 @@ export async function action({ params, request }: Route.ActionArgs) {
       );
     }
 
-    updateLesson(
-      lessonId,
-      null,
-      content ?? null,
-      videoUrl || null,
-      durationMinutes,
-      githubRepoUrl || null
-    );
+    // A blank video, duration or repo leaves that field as it was.
+    updateLesson(db, lessonId, {
+      content,
+      videoUrl: videoUrl || undefined,
+      durationMinutes: durationMinutes ?? undefined,
+      githubRepoUrl: githubRepoUrl || undefined,
+    });
     return { success: true };
   }
 
