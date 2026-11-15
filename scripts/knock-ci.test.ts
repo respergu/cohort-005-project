@@ -127,7 +127,6 @@ describe("the merge-to-main Action (knock-ci.ts sync)", () => {
     await sync(mainEnv);
 
     expect(calls()).toEqual([
-      "PUT https://control.knock.app/v1/preference_categories/new-lesson",
       "PUT https://control.knock.app/v1/preference_categories/refund-request-raised",
       "PUT https://control.knock.app/v1/preference_categories/refunds",
       "knock variable push --force",
