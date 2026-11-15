@@ -6,6 +6,7 @@ import { cn } from "~/lib/utils";
 import { connectKnock, type KnockClientConfig } from "~/lib/knock-browser";
 import {
   createNotificationPreferences,
+  FEED_AND_EMAIL,
   preferenceRowsFor,
   type ChannelChoices,
   type MutableCategory,
@@ -69,7 +70,7 @@ export function NotificationPreferences({
   return (
     <div className="divide-y">
       <div className="flex items-end justify-end gap-2 pb-2 text-xs font-medium text-muted-foreground">
-        {(["in_app_feed", "email"] as const).map((channel) => (
+        {FEED_AND_EMAIL.map((channel) => (
           <span key={channel} className="w-12 text-center">
             {CHANNEL_NAMES[channel]}
           </span>
@@ -135,7 +136,7 @@ function MutableRowToggles({
           {row.emailNote && ` ${row.emailNote}`}
         </p>
       </div>
-      {(["in_app_feed", "email"] as const).map((channel) => (
+      {FEED_AND_EMAIL.map((channel) => (
         <div key={channel} className="flex w-12 justify-center pt-0.5">
           {row.channels.includes(channel) ? (
             <Toggle

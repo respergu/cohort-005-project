@@ -101,7 +101,8 @@ export type LockedRow = {
 
 export type PreferenceRow = MutableRow | LockedRow;
 
-const FEED_AND_EMAIL: PreferenceChannel[] = ["in_app_feed", "email"];
+/** Both channels, in the order /settings shows their toggles. */
+export const FEED_AND_EMAIL: PreferenceChannel[] = ["in_app_feed", "email"];
 
 // In the order /settings shows them. Each category key matches
 // knock/preferences/default.json and the workflows' `categories`.
