@@ -9,8 +9,8 @@ import {
   FEED_AND_EMAIL,
   preferenceRowsFor,
   type ChannelChoices,
-  type MutableCategory,
-  type MutableRow,
+  type MuteableCategory,
+  type MuteableRow,
   type NotificationPreferences as Preferences,
   type PreferenceChannel,
   type PreferenceChoices,
@@ -43,10 +43,12 @@ export function NotificationPreferences({
 }) {
   const rows = preferenceRowsFor(person);
   const { preferences, loaded, setChoices } = usePreferences(config);
-  const [saving, setSaving] = useState<ReadonlySet<MutableCategory>>(new Set());
+  const [saving, setSaving] = useState<ReadonlySet<MuteableCategory>>(
+    new Set()
+  );
 
   async function toggle(
-    category: MutableCategory,
+    category: MuteableCategory,
     channel: PreferenceChannel,
     on: boolean
   ) {
@@ -91,7 +93,7 @@ export function NotificationPreferences({
             </div>
           </div>
         ) : (
-          <MutableRowToggles
+          <MuteableRowToggles
             key={row.category}
             row={row}
             choice={
@@ -111,18 +113,18 @@ export function NotificationPreferences({
   );
 }
 
-function MutableRowToggles({
+function MuteableRowToggles({
   row,
   choice,
   disabled,
   onToggle,
 }: {
-  row: MutableRow;
+  row: MuteableRow;
   /** Null until Knock answers. */
   choice: ChannelChoices | null;
   disabled: boolean;
   onToggle: (
-    category: MutableCategory,
+    category: MuteableCategory,
     channel: PreferenceChannel,
     on: boolean
   ) => void;
@@ -214,7 +216,7 @@ function usePreferences(config: KnockClientConfig | null) {
     };
   }, [firstConfig]);
 
-  function setChoices(category: MutableCategory, choice: ChannelChoices) {
+  function setChoices(category: MuteableCategory, choice: ChannelChoices) {
     setLoaded((state) =>
       state.status === "ready"
         ? { ...state, choices: { ...state.choices, [category]: choice } }
