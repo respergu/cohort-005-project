@@ -64,6 +64,8 @@ export function mightPassOnRetry(error: unknown): boolean {
     return true;
   }
   const { status } = error;
+  // A 408 is a Request Timeout. The PRD retries timeouts, so a 408 is
+  // retried like any other timeout, not parked like the other 4xx.
   return status === 408 || status === 429 || status < 400 || status >= 500;
 }
 
