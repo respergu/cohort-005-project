@@ -1,0 +1,3 @@
+<p style="margin: 0 0 16px;"><strong>{{ data.buyer_name | escape }}</strong> requested a refund for <strong>{{ data.course_title | escape }}</strong>. Their reason:</p>
+<p style="margin: 0 0 16px; white-space: pre-line;">“{{ data.reason | escape }}”</p>
+<p style="margin: 0;"><a href="{{ vars.app_url }}{{ data.path | escape }}" style="color: #111111; text-decoration: underline;">Review the Refund Request</a></p>

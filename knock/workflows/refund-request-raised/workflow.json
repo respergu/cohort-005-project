@@ -1,0 +1,60 @@
+{
+  "name": "Refund Request raised",
+  "description": "To every Platform Admin when a buyer raises a Refund Request. Triggered by raiseRefundRequest.",
+  "categories": [
+    "refund-request-raised"
+  ],
+  "settings": {
+    "override_preferences": false
+  },
+  "steps": [
+    {
+      "ref": "in_app_feed_1",
+      "type": "channel",
+      "channel_key": "in-app",
+      "template": {
+        "markdown_body@": "in_app_feed_1/markdown_body.md",
+        "action_url": "{{ vars.app_url }}{{ data.path | escape }}"
+      }
+    },
+    {
+      "ref": "email_1",
+      "type": "channel",
+      "channel_key": "postmark",
+      "template": {
+        "settings": {
+          "layout_key": "cadence"
+        },
+        "subject": "New refund request — {{ data.course_title | escape }}",
+        "html_body@": "email_1/html_body.html"
+      }
+    }
+  ],
+  "trigger_data_json_schema": {
+    "type": "object",
+    "properties": {
+      "course_title": {
+        "type": "string",
+        "minLength": 1
+      },
+      "path": {
+        "type": "string",
+        "pattern": "^/"
+      },
+      "buyer_name": {
+        "type": "string",
+        "minLength": 1
+      },
+      "reason": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "required": [
+      "course_title",
+      "path",
+      "buyer_name",
+      "reason"
+    ]
+  }
+}

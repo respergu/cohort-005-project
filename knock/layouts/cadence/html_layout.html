@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light">
+    <title>Cadence</title>
+  </head>
+  <body style="margin: 0; padding: 0; background-color: #ffffff;">
+    <div style="max-width: 560px; padding: 32px 24px; text-align: left; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 16px; line-height: 1.5; color: #111111;">
+      <p style="margin: 0 0 32px; font-size: 18px; font-weight: 600; letter-spacing: -0.01em;">Cadence</p>
+      <p style="margin: 0 0 16px;">Hi {{ recipient.name | escape }},</p>
+      {{ content }}
+      <p style="margin: 24px 0 0;">— The Cadence team</p>
+      <hr style="height: 0; margin: 32px 0 16px; border: 0; border-top: 1px solid #e5e5e5;">
+      <p style="margin: 0; font-size: 13px; color: #666666;">Choose which emails Cadence sends you in <a href="{{ vars.app_url }}/settings#notifications" style="color: #666666; text-decoration: underline;">Settings</a>.</p>
+    </div>
+  </body>
+</html>
