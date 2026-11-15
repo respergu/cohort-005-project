@@ -1,5 +1,7 @@
 import {
   Bell,
+  MessageCircleQuestionMark,
+  MessageSquareReply,
   Receipt,
   ReceiptText,
   Ticket,
@@ -47,6 +49,14 @@ export const notificationIcons = {
   "refund-request-approved": {
     Icon: ReceiptText,
     tone: "bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300",
+  },
+  "new-question": {
+    Icon: MessageCircleQuestionMark,
+    tone: "bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300",
+  },
+  reply: {
+    Icon: MessageSquareReply,
+    tone: "bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300",
   },
 
   // ── Seat claims and New Enrollment (#49) ──

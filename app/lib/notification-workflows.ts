@@ -75,6 +75,30 @@ export const notificationWorkflows = {
     })
     .strict(),
 
+  /** To the course's Instructor when anyone else asks a Question (#50). */
+  "new-question": z
+    .object({
+      ...everyTrigger,
+      /** The Batch step's key: one batch per course, per Instructor. */
+      course_id: z.number().int().min(1),
+      lesson_title: z.string().min(1),
+      asker_name: z.string().min(1),
+      // Knock's batch merge would cut anything longer.
+      question_excerpt: z.string().min(1).max(256),
+    })
+    .strict(),
+
+  /** To a Question's author when someone replies to it (#50). */
+  reply: z
+    .object({
+      ...everyTrigger,
+      lesson_title: z.string().min(1),
+      // The replier's name only: data reaches the author's browser as-is.
+      replier_name: z.string().min(1),
+      reply_excerpt: z.string().min(1).max(256),
+    })
+    .strict(),
+
   // ── Seat claims and New Enrollment (#49) ──
   /** To the Team Admin when a Student claims a Seat on their Team Licence. */
   "seat-claimed": z

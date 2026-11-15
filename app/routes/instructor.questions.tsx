@@ -14,6 +14,7 @@ import { AlertTriangle, CheckCircle2, ExternalLink } from "lucide-react";
 import { cn, daysSince, formatRelativeTime } from "~/lib/utils";
 import { MAX_COMMENT_LENGTH } from "~/lib/comments";
 import { createComment } from "~/lib/comments.server";
+import { sendInBackground } from "~/lib/notification-sender.server";
 import { parseFormData } from "~/lib/validation";
 import { db } from "~/db";
 import {
@@ -176,12 +177,16 @@ export async function action({ request }: Route.ActionArgs) {
     userId,
     question.lessonId,
     question.id,
-    parsed.data.body
+    parsed.data.body,
+    new Date()
   );
   if (!result.ok) {
     return { ok: false, error: result.error };
   }
 
+  // The Reply and its Notification row have committed. Sending doesn't hold
+  // up the response, and can't fail it.
+  sendInBackground(result.outboxRowIds);
   return { ok: true };
 }
 

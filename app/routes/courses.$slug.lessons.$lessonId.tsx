@@ -9,8 +9,8 @@ import {
   CommentThread,
   type RenderedComment,
 } from "~/components/comment-thread";
-import { MIN_COMMENT_LENGTH, MAX_COMMENT_LENGTH } from "~/lib/comments";
-import { createComment } from "~/lib/comments.server";
+import { createComment, editComment } from "~/lib/comments.server";
+import { sendInBackground } from "~/lib/notification-sender.server";
 import { db } from "~/db";
 import {
   categories,
@@ -328,19 +328,6 @@ function getCommentById(commentId: number) {
   return db.select().from(comments).where(eq(comments.id, commentId)).get();
 }
 
-function assertValidBody(body: string) {
-  const trimmed = body.trim();
-  if (trimmed.length < MIN_COMMENT_LENGTH) {
-    throw new Error("Comment cannot be empty");
-  }
-  if (trimmed.length > MAX_COMMENT_LENGTH) {
-    throw new Error(
-      `Comment must be ${MAX_COMMENT_LENGTH} characters or fewer`
-    );
-  }
-  return trimmed;
-}
-
 function getLessonThread(lessonId: number): ThreadComment[] {
   const course = getCourseForLesson(lessonId);
   if (!course) return [];
@@ -400,28 +387,6 @@ function getLessonThread(lessonId: number): ThreadComment[] {
 
   // A deleted question with no replies left has nothing worth showing.
   return topLevel.filter((c) => !c.deleted || c.replies.length > 0);
-}
-
-function updateComment(commentId: number, userId: number, body: string) {
-  const trimmed = assertValidBody(body);
-
-  const existing = getCommentById(commentId);
-  if (!existing) {
-    throw new Error("Comment not found");
-  }
-  if (existing.deletedAt !== null) {
-    throw new Error("Comment has been deleted");
-  }
-  if (existing.userId !== userId) {
-    throw new Error("You can only edit your own comments");
-  }
-
-  return db
-    .update(comments)
-    .set({ body: trimmed, editedAt: new Date().toISOString() })
-    .where(eq(comments.id, commentId))
-    .returning()
-    .get();
 }
 
 function deleteComment(commentId: number, userId: number, isStaff: boolean) {
@@ -873,11 +838,15 @@ export async function action({ params, request }: Route.ActionArgs) {
           currentUserId,
           lessonId,
           parsed.data.parentId ?? null,
-          parsed.data.body
+          parsed.data.body,
+          new Date()
         );
         if (!result.ok) {
           return { ok: false, error: result.error };
         }
+        // The Comment and its Notification rows have committed. Sending them
+        // doesn't hold up the response, and can't fail it.
+        sendInBackground(result.outboxRowIds);
         return { ok: true };
       }
 
@@ -892,7 +861,16 @@ export async function action({ params, request }: Route.ActionArgs) {
         if (!existing || existing.lessonId !== lessonId) {
           throw data("Comment not found", { status: 404 });
         }
-        updateComment(parsed.data.commentId, currentUserId, parsed.data.body);
+        const result = editComment(
+          db,
+          parsed.data.commentId,
+          currentUserId,
+          parsed.data.body,
+          new Date()
+        );
+        if (!result.ok) {
+          return { ok: false, error: result.error };
+        }
         return { ok: true };
       }
 

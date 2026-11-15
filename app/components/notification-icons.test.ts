@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   Bell,
+  MessageCircleQuestionMark,
+  MessageSquareReply,
   Receipt,
   ReceiptText,
   Ticket,
@@ -33,6 +35,16 @@ describe("notificationIconFor", () => {
     expect(notificationIconFor("refund-request-approved", {}).Icon).toBe(
       ReceiptText
     );
+  });
+
+  it("shows a question mark for New Question", () => {
+    expect(notificationIconFor("new-question", {}).Icon).toBe(
+      MessageCircleQuestionMark
+    );
+  });
+
+  it("shows a reply bubble for Reply", () => {
+    expect(notificationIconFor("reply", {}).Icon).toBe(MessageSquareReply);
   });
 
   it("shows a ticket for Seat claimed", () => {
