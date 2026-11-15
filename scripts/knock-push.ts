@@ -13,15 +13,26 @@ import { readJsonFile, writeKnockContent } from "./knock-content";
 /** The Knock CLI, pinned. Run through npx so its ~800 packages stay out of npm install. */
 export const KNOCK_CLI = ["npx", "--yes", "@knocklabs/cli@1.6.2"];
 
-export type KnockPushOptions = {
+/** What npm run knock:push, and the Knock Actions in knock-ci.ts, take. */
+export type KnockScriptOptions = {
   /** The repo root, holding knock.json and knock/. */
   root: string;
-  /** Where KNOCK_SERVICE_TOKEN comes from. */
+  /** Where KNOCK_SERVICE_TOKEN comes from, and in the Actions GITHUB_REF and GITHUB_SHA. */
   env: NodeJS.ProcessEnv;
   /** The command that runs the Knock CLI. */
   knockCli?: string[];
   fetch?: typeof fetch;
   log?: (line: string) => void;
+};
+
+/** What each call to Knock's management API takes. */
+export type KnockApiOptions = {
+  /** The repo root, holding knock/. */
+  root: string;
+  /** The KNOCK_SERVICE_TOKEN it authenticates with. */
+  token: string;
+  fetch: typeof globalThis.fetch;
+  log: (line: string) => void;
 };
 
 export async function knockPush({
@@ -30,7 +41,7 @@ export async function knockPush({
   knockCli = KNOCK_CLI,
   fetch = globalThis.fetch,
   log = console.log,
-}: KnockPushOptions): Promise<void> {
+}: KnockScriptOptions): Promise<void> {
   const token = env.KNOCK_SERVICE_TOKEN;
   if (!token) {
     throw new Error(
@@ -83,12 +94,7 @@ async function setDevelopmentVariables({
   token,
   fetch,
   log,
-}: {
-  root: string;
-  token: string;
-  fetch: typeof globalThis.fetch;
-  log: (line: string) => void;
-}): Promise<void> {
+}: KnockApiOptions): Promise<void> {
   const variables = z
     .record(
       z.object({
@@ -130,7 +136,7 @@ export function runKnockCli(
     root,
     env,
     knockCli = KNOCK_CLI,
-  }: { root: string; env: NodeJS.ProcessEnv; knockCli?: string[] },
+  }: Pick<KnockScriptOptions, "root" | "env" | "knockCli">,
   args: string[],
   explain = ""
 ): void {
@@ -160,13 +166,7 @@ export async function pushDefaultPreferences({
   token,
   fetch,
   log,
-}: {
-  root: string;
-  environment: KnockEnvironment;
-  token: string;
-  fetch: typeof globalThis.fetch;
-  log: (line: string) => void;
-}): Promise<void> {
+}: KnockApiOptions & { environment: KnockEnvironment }): Promise<void> {
   const response = await fetch(
     `https://control.knock.app/v1/environments/${environment}/defaults`,
     {
@@ -203,12 +203,7 @@ export async function upsertPreferenceCategories({
   token,
   fetch,
   log,
-}: {
-  root: string;
-  token: string;
-  fetch: typeof globalThis.fetch;
-  log: (line: string) => void;
-}): Promise<void> {
+}: KnockApiOptions): Promise<void> {
   const names = preferenceCategories(root);
   for (const name of names) {
     const response = await fetch(

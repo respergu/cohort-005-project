@@ -4,22 +4,12 @@ import {
   pushDefaultPreferences,
   runKnockCli,
   upsertPreferenceCategories,
+  type KnockScriptOptions,
 } from "./knock-push";
 
 // The GitHub Actions in .github/workflows/knock-*.yml run this, and nothing
 // else should: `sync` changes Production. A developer uses npm run knock:push,
 // which only ever targets Development.
-
-export type KnockCiOptions = {
-  /** The repo root, holding knock.json and knock/. */
-  root: string;
-  /** The Action's environment: KNOCK_SERVICE_TOKEN, GITHUB_REF, GITHUB_SHA. */
-  env: NodeJS.ProcessEnv;
-  /** The command that runs the Knock CLI. */
-  knockCli?: string[];
-  fetch?: typeof fetch;
-  log?: (line: string) => void;
-};
 
 /**
  * On a pull request, asks Knock whether knock/'s layouts and workflows are
@@ -31,7 +21,7 @@ export async function knockValidate({
   env,
   knockCli = KNOCK_CLI,
   log = console.log,
-}: Omit<KnockCiOptions, "fetch">): Promise<void> {
+}: Omit<KnockScriptOptions, "fetch">): Promise<void> {
   if (!env.KNOCK_SERVICE_TOKEN) {
     log(
       "::notice title=Knock validation skipped::This run has no KNOCK_SERVICE_TOKEN: GitHub doesn't give repo secrets to a pull request from a fork. The offline checks still ran, and the sync on merge to main validates every workflow again before it pushes."
@@ -71,7 +61,7 @@ export async function knockSync({
   knockCli = KNOCK_CLI,
   fetch = globalThis.fetch,
   log = console.log,
-}: KnockCiOptions): Promise<void> {
+}: KnockScriptOptions): Promise<void> {
   const sha = env.GITHUB_SHA;
   if (env.GITHUB_REF !== "refs/heads/main" || !sha) {
     throw new Error(
@@ -120,7 +110,10 @@ export async function knockSync({
 
 // ─── npx tsx scripts/knock-ci.ts validate|sync ───
 
-const COMMANDS = new Map<string, (options: KnockCiOptions) => Promise<void>>([
+const COMMANDS = new Map<
+  string,
+  (options: KnockScriptOptions) => Promise<void>
+>([
   ["validate", knockValidate],
   ["sync", knockSync],
 ]);
