@@ -1,12 +1,24 @@
 import { describe, expect, it } from "vitest";
-import { Bell, Receipt, ReceiptText, Ticket, TicketCheck } from "lucide-react";
+import {
+  Bell,
+  Receipt,
+  ReceiptText,
+  Ticket,
+  TicketCheck,
+  UserPlus,
+} from "lucide-react";
 import {
   notificationIconFor,
   pickNotificationIcon,
   type NotificationIcon,
 } from "./notification-icons";
+import { CirclePlay } from "lucide-react";
 
 describe("notificationIconFor", () => {
+  it("shows a play button for New lesson", () => {
+    expect(notificationIconFor("new-lesson", {}).Icon).toBe(CirclePlay);
+  });
+
   it("shows a receipt for Refund Request raised", () => {
     expect(notificationIconFor("refund-request-raised", {}).Icon).toBe(Receipt);
   });
@@ -21,6 +33,23 @@ describe("notificationIconFor", () => {
     expect(notificationIconFor("refund-request-approved", {}).Icon).toBe(
       ReceiptText
     );
+  });
+
+  it("shows a ticket for Seat claimed", () => {
+    expect(notificationIconFor("seat-claimed", { seats_left: 2 }).Icon).toBe(
+      Ticket
+    );
+  });
+
+  it("shows a checked ticket for Last Seat claimed, a Seat claimed item with last_seat", () => {
+    expect(
+      notificationIconFor("seat-claimed", { seats_left: 0, last_seat: true })
+        .Icon
+    ).toBe(TicketCheck);
+  });
+
+  it("shows a new person for New Enrollment", () => {
+    expect(notificationIconFor("new-enrollment", {}).Icon).toBe(UserPlus);
   });
 
   it("falls back to a bell for a workflow it doesn't know", () => {

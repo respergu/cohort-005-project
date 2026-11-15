@@ -39,6 +39,7 @@ import { resolveCountry } from "~/lib/country.server";
 import { calculatePppPrice, getCountryTierInfo, COUNTRIES } from "~/lib/ppp";
 import { parseFormData, parseParams } from "~/lib/validation";
 import { enrollUser } from "~/lib/enrollments.server";
+import { sendInBackground } from "~/lib/notification-sender.server";
 
 function getCourseBySlug(slug: string) {
   return db.select().from(courses).where(eq(courses.slug, slug)).get();
@@ -334,8 +335,11 @@ export async function action({ params, request }: Route.ActionArgs) {
       throw redirect(`/courses/${slug}`);
     }
     createPurchase(currentUserId, course.id, pppPrice, country);
-    const enrolled = enrollUser(db, currentUserId, course.id);
+    const enrolled = enrollUser(db, currentUserId, course.id, new Date());
     if (!enrolled.ok) throw data(enrolled.error, { status: 409 });
+    // The Enrollment and its Notification row have committed. Sending doesn't
+    // hold up the response, and can't fail it.
+    sendInBackground(enrolled.outboxRowIds);
     throw redirect(`/courses/${slug}/welcome`);
   }
 

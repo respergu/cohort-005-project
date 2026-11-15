@@ -1,5 +1,9 @@
-import { and, eq } from "drizzle-orm";
-import { coupons, enrollments, purchases } from "~/db/schema";
+import { and, eq, isNull, sql } from "drizzle-orm";
+import { coupons, courses, enrollments, purchases, users } from "~/db/schema";
+import {
+  queueNotification,
+  toNotificationUser,
+} from "~/lib/notification-outbox.server";
 import { getSeatAvailability, type Db } from "~/lib/refunds.server";
 
 // ─── Enrollments ───
@@ -11,6 +15,8 @@ import { getSeatAvailability, type Db } from "~/lib/refunds.server";
 // one.
 
 type Enrollment = typeof enrollments.$inferSelect;
+type User = typeof users.$inferSelect;
+type Course = typeof courses.$inferSelect;
 
 export const SEAT_ON_HOLD =
   "This seat can't be claimed right now. Ask the person who shared it with you.";
@@ -31,19 +37,74 @@ function isEnrolled(tx: Tx, userId: number, courseId: number) {
   return existing !== undefined;
 }
 
+/** Seats on a Team Licence that a Student could still claim. */
+function countSeatsLeft(tx: Tx, teamLicenceId: number): number {
+  const row = tx
+    .select({ count: sql<number>`count(*)` })
+    .from(coupons)
+    .where(
+      and(
+        eq(coupons.purchaseId, teamLicenceId),
+        isNull(coupons.redeemedAt),
+        isNull(coupons.refundedAt)
+      )
+    )
+    .get();
+  return row?.count ?? 0;
+}
+
+function getUser(tx: Tx, userId: number) {
+  return tx.select().from(users).where(eq(users.id, userId)).get();
+}
+
+function getCourse(tx: Tx, courseId: number) {
+  return tx.select().from(courses).where(eq(courses.id, courseId)).get();
+}
+
+/**
+ * New Enrollment, to the course's Instructor. The Student is the actor, so an
+ * Instructor enrolling on their own course isn't told about it.
+ */
+function queueNewEnrollment(
+  tx: Tx,
+  student: User,
+  course: Course,
+  now: Date
+): number[] {
+  const instructor = getUser(tx, course.instructorId);
+  if (!instructor) {
+    throw new Error(`Course ${course.id} has no Instructor.`);
+  }
+  return queueNotification(
+    tx,
+    "new-enrollment",
+    [toNotificationUser(instructor)],
+    toNotificationUser(student),
+    {
+      course_title: course.title,
+      course_id: course.id,
+      path: `/instructor/${course.id}/students`,
+    },
+    now
+  );
+}
+
 export type ClaimResult =
-  | { ok: true; enrollment: Enrollment }
+  | { ok: true; enrollment: Enrollment; outboxRowIds: number[] }
   | { ok: false; error: string };
 
 /**
  * Claims a Seat for a Student and gives them an Enrollment on its course. The
- * Seat update and the Enrollment commit together or not at all.
+ * Seat update, the Enrollment and its Notifications (Seat claimed to the Team
+ * Admin, New Enrollment to the Instructor) commit together or not at all.
+ * Returns the outbox row ids for the route to send after the commit.
  */
 export function claimSeat(
   db: Db,
   code: string,
   studentId: number,
-  country: string | null
+  country: string | null,
+  now: Date
 ): ClaimResult {
   return db.transaction((tx): ClaimResult => {
     const seat = tx.select().from(coupons).where(eq(coupons.code, code)).get();
@@ -63,7 +124,7 @@ export function claimSeat(
     // A Seat is claimed from the country its Team Licence was bought in. The
     // country is the one recorded on the Purchase (docs/adr/0009).
     const purchase = tx
-      .select({ country: purchases.country })
+      .select({ country: purchases.country, buyerId: purchases.userId })
       .from(purchases)
       .where(eq(purchases.id, seat.purchaseId))
       .get();
@@ -78,7 +139,7 @@ export function claimSeat(
     tx.update(coupons)
       .set({
         redeemedByUserId: studentId,
-        redeemedAt: new Date().toISOString(),
+        redeemedAt: now.toISOString(),
       })
       .where(eq(coupons.id, seat.id))
       .run();
@@ -89,19 +150,57 @@ export function claimSeat(
       .returning()
       .get();
 
-    return { ok: true, enrollment };
+    const student = getUser(tx, studentId);
+    const teamAdmin = purchase && getUser(tx, purchase.buyerId);
+    const course = getCourse(tx, seat.courseId);
+    if (!student || !teamAdmin || !course) {
+      throw new Error(`Seat ${seat.id} has no Student, Team Admin or course.`);
+    }
+
+    // Every claim carries seats_left. Only the final claim sets last_seat,
+    // and the others leave the key out, so the order the triggers reach
+    // Knock in can't hide it from the batch.
+    const seatsLeft = countSeatsLeft(tx, seat.purchaseId);
+    const seatClaimedRowIds = queueNotification(
+      tx,
+      "seat-claimed",
+      [toNotificationUser(teamAdmin)],
+      toNotificationUser(student),
+      {
+        course_title: course.title,
+        team_licence_id: seat.purchaseId,
+        seats_left: seatsLeft,
+        ...(seatsLeft === 0 && { last_seat: true }),
+        path: "/team",
+      },
+      now
+    );
+
+    return {
+      ok: true,
+      enrollment,
+      outboxRowIds: [
+        ...seatClaimedRowIds,
+        ...queueNewEnrollment(tx, student, course, now),
+      ],
+    };
   });
 }
 
 export type EnrollResult =
-  | { ok: true; enrollment: Enrollment }
+  | { ok: true; enrollment: Enrollment; outboxRowIds: number[] }
   | { ok: false; error: string };
 
-/** Gives the buyer of an Individual Purchase their Enrollment on the course. */
+/**
+ * Gives the buyer of an Individual Purchase their Enrollment on the course,
+ * and queues New Enrollment to its Instructor. Returns the outbox row ids for
+ * the route to send after the commit.
+ */
 export function enrollUser(
   db: Db,
   buyerId: number,
-  courseId: number
+  courseId: number,
+  now: Date
 ): EnrollResult {
   return db.transaction((tx): EnrollResult => {
     if (isEnrolled(tx, buyerId, courseId)) {
@@ -114,6 +213,16 @@ export function enrollUser(
       .returning()
       .get();
 
-    return { ok: true, enrollment };
+    const buyer = getUser(tx, buyerId);
+    const course = getCourse(tx, courseId);
+    if (!buyer || !course) {
+      throw new Error(`Enrollment ${enrollment.id} has no buyer or course.`);
+    }
+
+    return {
+      ok: true,
+      enrollment,
+      outboxRowIds: queueNewEnrollment(tx, buyer, course, now),
+    };
   });
 }
