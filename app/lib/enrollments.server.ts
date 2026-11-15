@@ -108,11 +108,11 @@ export function claimSeat(
 ): ClaimResult {
   return db.transaction((tx): ClaimResult => {
     const seat = tx.select().from(coupons).where(eq(coupons.code, code)).get();
-    if (!seat) return { ok: false, error: "Coupon not found" };
+    if (!seat) return { ok: false, error: "Seat not found" };
 
     const availability = getSeatAvailability(tx, seat);
     if (availability === "claimed") {
-      return { ok: false, error: "Coupon has already been redeemed" };
+      return { ok: false, error: "This seat has already been claimed" };
     }
     if (availability === "on_hold") return { ok: false, error: SEAT_ON_HOLD };
     if (availability === "refunded") return { ok: false, error: SEAT_REFUNDED };
@@ -132,7 +132,7 @@ export function claimSeat(
       return {
         ok: false,
         error:
-          "This coupon can only be redeemed from the same country as the purchaser",
+          "This seat can only be claimed from the same country as the purchaser",
       };
     }
 

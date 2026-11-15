@@ -159,7 +159,7 @@ describe("refusing a Seat claim", () => {
 
     expect(result).toEqual({
       ok: false,
-      error: "Coupon has already been redeemed",
+      error: "This seat has already been claimed",
     });
     expect(seatsAndEnrollments()).toEqual(before);
   });
@@ -243,7 +243,7 @@ describe("refusing a Seat claim", () => {
     expect(result).toEqual({
       ok: false,
       error:
-        "This coupon can only be redeemed from the same country as the purchaser",
+        "This seat can only be claimed from the same country as the purchaser",
     });
     expect(seatsAndEnrollments()).toEqual(before);
   });
