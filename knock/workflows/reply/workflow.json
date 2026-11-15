@@ -1,58 +1,57 @@
 {
   "name": "Reply",
   "description": "To a Question's author when someone else replies to it, while they have an Enrollment on the course. Triggered by createComment.",
-  "categories": [
-    "reply"
-  ],
-  "settings": {
-    "override_preferences": false
-  },
   "steps": [
     {
-      "ref": "in_app_feed_1",
       "type": "channel",
-      "channel_key": "in-app",
       "template": {
         "action_url": "{{ vars.app_url }}{{ data.path | escape }}",
         "markdown_body@": "in_app_feed_1/markdown_body.md"
-      }
+      },
+      "ref": "in_app_feed_1",
+      "channel_type": "in_app_feed",
+      "channel_key": "in-app"
     },
     {
-      "ref": "email_1",
       "type": "channel",
-      "channel_key": "postmark",
       "template": {
-        "settings": {
-          "layout_key": "cadence"
-        },
         "subject": "{{ data.replier_name | escape }} replied to your Question — {{ data.course_title | escape }}",
+        "settings": {
+          "layout_key": "cadence",
+          "attachment_key": "attachments"
+        },
         "html_body@": "email_1/html_body.html"
-      }
+      },
+      "ref": "email_1",
+      "channel_type": "email",
+      "channel_key": "postmark"
     }
   ],
+  "categories": [
+    "reply"
+  ],
   "trigger_data_json_schema": {
-    "type": "object",
     "properties": {
       "course_title": {
-        "type": "string",
-        "minLength": 1
-      },
-      "path": {
-        "type": "string",
-        "pattern": "^/"
+        "minLength": 1,
+        "type": "string"
       },
       "lesson_title": {
-        "type": "string",
-        "minLength": 1
+        "minLength": 1,
+        "type": "string"
+      },
+      "path": {
+        "pattern": "^/",
+        "type": "string"
       },
       "replier_name": {
-        "type": "string",
-        "minLength": 1
+        "minLength": 1,
+        "type": "string"
       },
       "reply_excerpt": {
-        "type": "string",
+        "maxLength": 256,
         "minLength": 1,
-        "maxLength": 256
+        "type": "string"
       }
     },
     "required": [
@@ -61,6 +60,14 @@
       "lesson_title",
       "replier_name",
       "reply_excerpt"
-    ]
-  }
+    ],
+    "type": "object"
+  },
+  "trigger_frequency": "every_trigger",
+  "__readonly": {
+    "key": "reply",
+    "active": true,
+    "valid": true
+  },
+  "$schema": "https://schemas.knock.app/cli/workflow.json"
 }

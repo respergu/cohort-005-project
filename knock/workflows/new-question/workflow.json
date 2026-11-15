@@ -1,77 +1,76 @@
 {
   "name": "New Question",
   "description": "To the course's Instructor when anyone else asks a Question, batched per course for an hour. Triggered by createComment.",
-  "categories": [
-    "new-question"
-  ],
-  "settings": {
-    "override_preferences": false
-  },
   "steps": [
     {
-      "ref": "batch_1",
       "type": "batch",
+      "ref": "batch_1",
       "settings": {
-        "batch_key": "data.course_id",
+        "batch_order": "asc",
         "batch_window_type": "fixed",
+        "batch_key": "data.course_id",
         "batch_window": {
           "unit": "hours",
           "value": 1
         },
         "batch_execution_mode": "accumulate",
-        "batch_order": "asc",
         "workflow_version_mode": "latest"
       }
     },
     {
-      "ref": "in_app_feed_1",
       "type": "channel",
-      "channel_key": "in-app",
       "template": {
         "action_url": "{{ vars.app_url }}{{ data.path | escape }}",
         "markdown_body@": "in_app_feed_1/markdown_body.md"
-      }
+      },
+      "ref": "in_app_feed_1",
+      "channel_type": "in_app_feed",
+      "channel_key": "in-app"
     },
     {
-      "ref": "email_1",
       "type": "channel",
-      "channel_key": "postmark",
       "template": {
-        "settings": {
-          "layout_key": "cadence"
-        },
         "subject": "{% if total_activities > 1 %}{{ total_activities }} new Questions{% else %}New Question{% endif %} — {{ data.course_title | escape }}",
+        "settings": {
+          "layout_key": "cadence",
+          "attachment_key": "attachments"
+        },
         "html_body@": "email_1/html_body.html"
-      }
+      },
+      "ref": "email_1",
+      "channel_type": "email",
+      "channel_key": "postmark"
     }
   ],
+  "categories": [
+    "new-question"
+  ],
   "trigger_data_json_schema": {
-    "type": "object",
     "properties": {
-      "course_title": {
-        "type": "string",
-        "minLength": 1
-      },
-      "path": {
-        "type": "string",
-        "pattern": "^/"
+      "asker_name": {
+        "minLength": 1,
+        "type": "string"
       },
       "course_id": {
-        "type": "integer",
-        "minimum": 1
+        "minimum": 1,
+        "type": "integer"
+      },
+      "course_title": {
+        "minLength": 1,
+        "type": "string"
       },
       "lesson_title": {
-        "type": "string",
-        "minLength": 1
+        "minLength": 1,
+        "type": "string"
       },
-      "asker_name": {
-        "type": "string",
-        "minLength": 1
+      "path": {
+        "pattern": "^/",
+        "type": "string"
       },
       "question_excerpt": {
-        "type": "string",
+        "maxLength": 256,
         "minLength": 1,
-        "maxLength": 256
+        "type": "string"
       }
     },
     "required": [
@@ -81,6 +80,14 @@
       "lesson_title",
       "asker_name",
       "question_excerpt"
-    ]
-  }
+    ],
+    "type": "object"
+  },
+  "trigger_frequency": "every_trigger",
+  "__readonly": {
+    "key": "new-question",
+    "active": true,
+    "valid": true
+  },
+  "$schema": "https://schemas.knock.app/cli/workflow.json"
 }

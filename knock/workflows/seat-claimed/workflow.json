@@ -1,34 +1,54 @@
 {
   "name": "Seat claims",
   "description": "To the Team Admin when Students claim Seats on their Team Licence, batched per Team Licence for an hour. Branches on data.last_seat: Last Seat claimed (Feed and email) when the batch holds the final claim, otherwise Seat claimed (Feed only). Triggered by claimSeat.",
-  "categories": [
-    "seat-claims"
-  ],
-  "settings": {
-    "override_preferences": false
-  },
   "steps": [
     {
-      "ref": "batch_1",
       "type": "batch",
+      "ref": "batch_1",
       "settings": {
-        "batch_key": "data.team_licence_id",
+        "batch_order": "asc",
         "batch_window_type": "fixed",
+        "batch_key": "data.team_licence_id",
         "batch_window": {
           "unit": "hours",
           "value": 1
         },
         "batch_execution_mode": "accumulate",
-        "batch_order": "asc",
         "workflow_version_mode": "latest"
       }
     },
     {
-      "ref": "branch_1",
       "type": "branch",
+      "ref": "branch_1",
       "branches": [
         {
           "name": "Last Seat claimed",
+          "steps": [
+            {
+              "type": "channel",
+              "template": {
+                "action_url": "{{ vars.app_url }}{{ data.path | escape }}",
+                "markdown_body@": "in_app_feed_1/markdown_body.md"
+              },
+              "ref": "in_app_feed_1",
+              "channel_type": "in_app_feed",
+              "channel_key": "in-app"
+            },
+            {
+              "type": "channel",
+              "template": {
+                "subject": "Last Seat claimed — {{ data.course_title | escape }}",
+                "settings": {
+                  "layout_key": "cadence",
+                  "attachment_key": "attachments"
+                },
+                "html_body@": "email_1/html_body.html"
+              },
+              "ref": "email_1",
+              "channel_type": "email",
+              "channel_key": "postmark"
+            }
+          ],
           "conditions": {
             "all": [
               {
@@ -38,43 +58,20 @@
               }
             ]
           },
-          "steps": [
-            {
-              "ref": "in_app_feed_1",
-              "type": "channel",
-              "channel_key": "in-app",
-              "template": {
-                "action_url": "{{ vars.app_url }}{{ data.path | escape }}",
-                "markdown_body@": "in_app_feed_1/markdown_body.md"
-              }
-            },
-            {
-              "ref": "email_1",
-              "type": "channel",
-              "channel_key": "postmark",
-              "template": {
-                "settings": {
-                  "layout_key": "cadence"
-                },
-                "subject": "Last Seat claimed — {{ data.course_title | escape }}",
-                "html_body@": "email_1/html_body.html"
-              }
-            }
-          ],
           "terminates": false
         },
         {
           "name": "Seat claimed",
-          "conditions": null,
           "steps": [
             {
-              "ref": "in_app_feed_2",
               "type": "channel",
-              "channel_key": "in-app",
               "template": {
                 "action_url": "{{ vars.app_url }}{{ data.path | escape }}",
                 "markdown_body@": "in_app_feed_2/markdown_body.md"
-              }
+              },
+              "ref": "in_app_feed_2",
+              "channel_type": "in_app_feed",
+              "channel_key": "in-app"
             }
           ],
           "terminates": false
@@ -82,30 +79,32 @@
       ]
     }
   ],
+  "categories": [
+    "seat-claims"
+  ],
   "trigger_data_json_schema": {
-    "type": "object",
     "properties": {
       "course_title": {
-        "type": "string",
-        "minLength": 1
-      },
-      "path": {
-        "type": "string",
-        "pattern": "^/"
-      },
-      "team_licence_id": {
-        "type": "integer",
-        "minimum": 1
-      },
-      "seats_left": {
-        "type": "integer",
-        "minimum": 0
+        "minLength": 1,
+        "type": "string"
       },
       "last_seat": {
-        "type": "boolean",
         "enum": [
           true
-        ]
+        ],
+        "type": "boolean"
+      },
+      "path": {
+        "pattern": "^/",
+        "type": "string"
+      },
+      "seats_left": {
+        "minimum": 0,
+        "type": "integer"
+      },
+      "team_licence_id": {
+        "minimum": 1,
+        "type": "integer"
       }
     },
     "required": [
@@ -113,6 +112,14 @@
       "path",
       "team_licence_id",
       "seats_left"
-    ]
-  }
+    ],
+    "type": "object"
+  },
+  "trigger_frequency": "every_trigger",
+  "__readonly": {
+    "key": "seat-claimed",
+    "active": true,
+    "valid": true
+  },
+  "$schema": "https://schemas.knock.app/cli/workflow.json"
 }
