@@ -2,6 +2,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import Knock, { APIError, type ClientOptions } from "@knocklabs/node";
 import type { NotificationData, NotificationUser } from "~/db/schema";
+import type { WorkflowKey } from "~/lib/notification-workflows";
 
 // ─── Notification transports ───
 // The sender hands each outbox row to a transport, the way sendEmail hands
@@ -10,7 +11,7 @@ import type { NotificationData, NotificationUser } from "~/db/schema";
 
 /** One whole Knock trigger, exactly as Knock receives it. */
 export type KnockTrigger = {
-  workflow: string;
+  workflow: WorkflowKey;
   recipients: NotificationUser[];
   actor: NotificationUser | null;
   data: NotificationData;
