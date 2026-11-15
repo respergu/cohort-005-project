@@ -44,6 +44,38 @@ describe("knock/", () => {
     expect(unescaped).toEqual([]);
   });
 
+  // Notifications about the buyer's own money can't be muted. Knock's
+  // override_preferences is per workflow, so it locks the Feed and email together.
+  it("locks every workflow in the Refunds category, and no other", () => {
+    const workflow = z.object({
+      categories: z.array(z.string()).default([]),
+      settings: z
+        .object({ override_preferences: z.boolean().default(false) })
+        .default({}),
+    });
+    const locked = Object.fromEntries(
+      readdirSync(join(KNOCK_DIR, "workflows")).map((key) => {
+        const { categories, settings } = workflow.parse(
+          JSON.parse(
+            readFileSync(
+              join(KNOCK_DIR, "workflows", key, "workflow.json"),
+              "utf8"
+            )
+          )
+        );
+        return [
+          key,
+          { refunds: categories.includes("refunds"), locked: settings.override_preferences },
+        ];
+      })
+    );
+
+    expect(
+      Object.entries(locked).filter(([, { refunds, locked }]) => refunds !== locked)
+    ).toEqual([]);
+    expect(locked["refund-request-decided"]).toEqual({ refunds: true, locked: true });
+  });
+
   describe("the default preference set", () => {
     const defaults = z
       .object({
