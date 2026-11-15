@@ -1,6 +1,7 @@
 import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
+import { isDeepStrictEqual } from "node:util";
 import { z } from "zod";
 import { notificationWorkflows } from "../app/lib/notification-workflows";
 
@@ -70,6 +71,7 @@ function renderWorkflow(
   schema: z.AnyZodObject,
   channels: Channels
 ): string {
+  const text = readFileSync(path, "utf8");
   const workflow = readJsonFile(path);
   if (!isObject(workflow) || !Array.isArray(workflow.steps)) {
     throw new Error(`${path} needs a "steps" array.`);
@@ -79,6 +81,9 @@ function renderWorkflow(
     steps: withChannelKeys(workflow.steps, channels, path),
     trigger_data_json_schema: triggerDataSchema(schema),
   };
+  // A push makes the Knock CLI rewrite workflow.json in its own key order.
+  // Keep that text while the content matches, so pushes don't dirty the tree.
+  if (isDeepStrictEqual(rendered, workflow)) return text;
   return `${JSON.stringify(rendered, null, 2)}\n`;
 }
 
