@@ -96,6 +96,7 @@ You don't need these yet, but you'll be asked for them along the way. Both have 
 | `npm run db:generate`        | Generate a migration from the schema         |
 | `npm run db:migrate`         | Run database migrations                      |
 | `npm run db:seed`            | Reseed the database (drops and recreates it) |
+| `npm run knock:setup`        | Walk through Knock's dashboard-only settings |
 | `npm run reset <slug>`       | Reset your repo to a lesson checkpoint       |
 | `npm run cherry-pick <slug>` | Cherry-pick a lesson's solution              |
 | `npm run pull`               | Merge the course repo's latest `main` in     |
