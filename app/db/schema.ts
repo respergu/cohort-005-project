@@ -51,6 +51,13 @@ export const users = sqliteTable("users", {
   role: text("role").notNull().$type<UserRole>(),
   avatarUrl: text("avatar_url"),
   bio: text("bio"),
+  // The user's id in Knock, and the `sub` of their signed user token. Random,
+  // not the numeric id, so a reseed starts everyone with a fresh feed. Changing
+  // it loses the user's feed and saved preferences. See docs/adr/0015.
+  knockId: text("knock_id")
+    .notNull()
+    .unique()
+    .$defaultFn(() => crypto.randomUUID()),
   createdAt: text("created_at")
     .notNull()
     .$defaultFn(() => new Date().toISOString()),
@@ -370,6 +377,51 @@ export const videoWatchEvents = sqliteTable("video_watch_events", {
     .references(() => lessons.id),
   eventType: text("event_type").notNull(),
   positionSeconds: real("position_seconds").notNull(),
+  createdAt: text("created_at")
+    .notNull()
+    .$defaultFn(() => new Date().toISOString()),
+});
+
+// ─── Notification outbox ───
+// Each row is one whole Knock trigger, written in the same transaction as the
+// event it tells people about. The sender deletes a row once its transport
+// accepts it, so there is no "sent" state: a row is either waiting or parked.
+// The outbox is a delivery queue, not Cadence's record of Notifications — Knock
+// is. See docs/adr/0014.
+
+export enum OutboxRowStatus {
+  Waiting = "waiting",
+  Parked = "parked",
+}
+
+/** A recipient or actor as Knock sees them. Only name and email reach Knock. */
+export type NotificationUser = { id: string; name: string; email: string };
+
+/** Trigger data is flat: Knock's batch merge drops nested objects and arrays. */
+export type NotificationData = Record<string, string | number | boolean>;
+
+export const notificationOutbox = sqliteTable("notification_outbox", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  workflow: text("workflow").notNull(),
+  // At most 1,000, Knock's limit for one trigger. The actor is never one.
+  recipients: text("recipients", { mode: "json" })
+    .notNull()
+    .$type<NotificationUser[]>(),
+  // Null when Cadence itself did the thing the Notification is about.
+  actor: text("actor", { mode: "json" }).$type<NotificationUser>(),
+  data: text("data", { mode: "json" }).notNull().$type<NotificationData>(),
+  // Knock's Idempotency-Key, the same on every attempt. Not the row id, because
+  // a reseed reuses row ids and Knock would replay the old response.
+  idempotencyKey: text("idempotency_key")
+    .notNull()
+    .unique()
+    .$defaultFn(() => crypto.randomUUID()),
+  status: text("status")
+    .notNull()
+    .$type<OutboxRowStatus>()
+    .default(OutboxRowStatus.Waiting),
+  // Failed sends so far.
+  attempts: integer("attempts").notNull().default(0),
   createdAt: text("created_at")
     .notNull()
     .$defaultFn(() => new Date().toISOString()),

@@ -65,6 +65,7 @@ async function seed() {
 
   // Drop and recreate tables for a clean seed
   sqlite.exec(`
+    DROP TABLE IF EXISTS notification_outbox;
     DROP TABLE IF EXISTS comments;
     DROP TABLE IF EXISTS course_ratings;
     DROP TABLE IF EXISTS video_watch_events;
@@ -2851,6 +2852,11 @@ This course is still in draft while the cluster examples are rewritten against t
   );
   console.log(
     `  Teams: ${countRows(schema.teams)}, coupons: ${countRows(schema.coupons)} (${countRows(schema.coupons, isNotNull(schema.coupons.redeemedByUserId))} redeemed)`
+  );
+  // Seeding inserts rows directly, never through domain functions, so it
+  // queues no Notifications and sends nothing to Knock.
+  console.log(
+    `  Notification outbox: ${countRows(schema.notificationOutbox)} rows`
   );
 }
 
