@@ -194,7 +194,7 @@ export default function Settings({ loaderData }: Route.ComponentProps) {
         </CardContent>
       </Card>
 
-      <Card id="notifications" className="mt-8 max-w-md scroll-mt-6">
+      <Card id="notifications" className="mt-8 max-w-md scroll-mt-8">
         <CardHeader>
           <h2 className="text-lg font-semibold">Notifications</h2>
           <p className="text-sm text-muted-foreground">
