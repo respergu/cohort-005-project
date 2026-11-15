@@ -187,25 +187,34 @@ export function claimSeat(
   });
 }
 
-export type EnrollResult =
+export type PurchaseResult =
   | { ok: true; enrollment: Enrollment; outboxRowIds: number[] }
   | { ok: false; error: string };
 
 /**
- * Gives the buyer of an Individual Purchase their Enrollment on the course,
- * and queues New Enrollment to its Instructor. Returns the outbox row ids for
+ * Records an Individual Purchase and gives the buyer their Enrollment on the
+ * course. The Purchase, the Enrollment and New Enrollment to the course's
+ * Instructor commit together or not at all. Returns the outbox row ids for
  * the route to send after the commit.
  */
-export function enrollUser(
+export function makeIndividualPurchase(
   db: Db,
   buyerId: number,
   courseId: number,
+  amountPaid: number,
+  country: string | null,
   now: Date
-): EnrollResult {
-  return db.transaction((tx): EnrollResult => {
+): PurchaseResult {
+  return db.transaction((tx): PurchaseResult => {
     if (isEnrolled(tx, buyerId, courseId)) {
       return { ok: false, error: ALREADY_ENROLLED };
     }
+
+    const purchase = tx
+      .insert(purchases)
+      .values({ userId: buyerId, courseId, amountPaid, country })
+      .returning()
+      .get();
 
     const enrollment = tx
       .insert(enrollments)
@@ -216,7 +225,7 @@ export function enrollUser(
     const buyer = getUser(tx, buyerId);
     const course = getCourse(tx, courseId);
     if (!buyer || !course) {
-      throw new Error(`Enrollment ${enrollment.id} has no buyer or course.`);
+      throw new Error(`Purchase ${purchase.id} has no buyer or course.`);
     }
 
     return {

@@ -3,7 +3,7 @@ import { and, eq } from "drizzle-orm";
 import { createTestDb, seedBaseData } from "~/test/setup";
 import * as schema from "~/db/schema";
 import { UserRole } from "~/db/schema";
-import { claimSeat, enrollUser } from "./enrollments.server";
+import { claimSeat, makeIndividualPurchase } from "./enrollments.server";
 import { listOutboxRows } from "./notification-outbox.server";
 
 const NOW = new Date(2026, 9, 6, 12, 0, 0);
@@ -249,24 +249,71 @@ describe("refusing a Seat claim", () => {
   });
 });
 
-describe("enrolling a buyer after an Individual Purchase", () => {
-  it("gives the buyer an Enrollment on the course", () => {
-    const result = enrollUser(db, base.user.id, base.course.id, NOW);
+const PRICE = 7900;
+
+function buyCourse(buyerId: number) {
+  return makeIndividualPurchase(db, buyerId, base.course.id, PRICE, "GB", NOW);
+}
+
+function purchasesOf(userId: number) {
+  return db
+    .select()
+    .from(schema.purchases)
+    .where(eq(schema.purchases.userId, userId))
+    .all();
+}
+
+describe("making an Individual Purchase", () => {
+  it("records the Purchase and gives the buyer an Enrollment on the course", () => {
+    const result = buyCourse(base.user.id);
 
     expect(result).toMatchObject({ ok: true });
+    expect(purchasesOf(base.user.id)).toEqual([
+      {
+        id: expect.any(Number),
+        userId: base.user.id,
+        courseId: base.course.id,
+        amountPaid: 7900,
+        country: "GB",
+        createdAt: expect.any(String),
+      },
+    ]);
     expect(enrollmentsOf(base.user.id)).toHaveLength(1);
   });
 
-  it("refuses a second Enrollment on the same course", () => {
-    enrollUser(db, base.user.id, base.course.id, NOW);
+  it("refuses a buyer already enrolled on the course, writing no Purchase", () => {
+    buyCourse(base.user.id);
 
-    const result = enrollUser(db, base.user.id, base.course.id, NOW);
+    const result = buyCourse(base.user.id);
 
     expect(result).toEqual({
       ok: false,
       error: "You are already enrolled in this course",
     });
+    expect(purchasesOf(base.user.id)).toHaveLength(1);
     expect(enrollmentsOf(base.user.id)).toHaveLength(1);
+  });
+
+  it("writes no Purchase when the Enrollment can't be written", () => {
+    db.$client.exec(`
+      CREATE TRIGGER enrollments_down BEFORE INSERT ON enrollments
+      BEGIN SELECT RAISE(ABORT, 'enrollments are down'); END;
+    `);
+
+    expect(() => buyCourse(base.user.id)).toThrow("enrollments are down");
+    expect(purchasesOf(base.user.id)).toEqual([]);
+    expect(listOutboxRows(db)).toEqual([]);
+  });
+
+  it("writes no Purchase and no Enrollment when its Notification can't be queued", () => {
+    db.$client.exec(`
+      CREATE TRIGGER outbox_down BEFORE INSERT ON notification_outbox
+      BEGIN SELECT RAISE(ABORT, 'the outbox is down'); END;
+    `);
+
+    expect(() => buyCourse(base.user.id)).toThrow("the outbox is down");
+    expect(purchasesOf(base.user.id)).toEqual([]);
+    expect(enrollmentsOf(base.user.id)).toEqual([]);
   });
 });
 
@@ -371,7 +418,7 @@ describe("the New Enrollment Notification", () => {
   });
 
   it("is queued for the course's Instructor when a buyer enrols after an Individual Purchase", () => {
-    enrollUser(db, base.user.id, base.course.id, NOW);
+    buyCourse(base.user.id);
 
     const rows = newEnrollmentRows();
     expect(rows).toHaveLength(1);
@@ -397,8 +444,10 @@ describe("the New Enrollment Notification", () => {
   });
 
   it("isn't queued when the Instructor buys their own course", () => {
-    enrollUser(db, base.instructor.id, base.course.id, NOW);
+    buyCourse(base.instructor.id);
 
+    expect(purchasesOf(base.instructor.id)).toHaveLength(1);
+    expect(enrollmentsOf(base.instructor.id)).toHaveLength(1);
     expect(newEnrollmentRows()).toEqual([]);
   });
 
@@ -412,9 +461,9 @@ describe("the New Enrollment Notification", () => {
   });
 
   it("isn't queued again when a buyer is refused a second Enrollment", () => {
-    enrollUser(db, base.user.id, base.course.id, NOW);
+    buyCourse(base.user.id);
 
-    enrollUser(db, base.user.id, base.course.id, NOW);
+    buyCourse(base.user.id);
 
     expect(newEnrollmentRows()).toHaveLength(1);
   });
@@ -446,7 +495,7 @@ describe("handing the Notifications to the route", () => {
   });
 
   it("returns the id of the New Enrollment row an Individual Purchase queued", () => {
-    const result = enrollUser(db, base.user.id, base.course.id, NOW);
+    const result = buyCourse(base.user.id);
 
     const rows = listOutboxRows(db);
     expect(rows).toHaveLength(1);
