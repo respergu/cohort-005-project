@@ -58,6 +58,7 @@ import {
 import { data, isRouteErrorResponse } from "react-router";
 import { z } from "zod";
 import { parseFormData, parseParams } from "~/lib/validation";
+import { createLesson, updateLesson } from "~/lib/lessons.server";
 
 function getUserById(id: number) {
   return db.select().from(users).where(eq(users.id, id)).get();
@@ -260,45 +261,6 @@ function getLessonsByModule(moduleId: number) {
     .where(eq(lessons.moduleId, moduleId))
     .orderBy(lessons.position)
     .all();
-}
-
-function createLesson(
-  moduleId: number,
-  title: string,
-  content: string | null,
-  videoUrl: string | null,
-  position: number | null,
-  durationMinutes: number | null
-) {
-  const pos =
-    position ??
-    db
-      .select({ max: sql<number>`coalesce(max(${lessons.position}), 0)` })
-      .from(lessons)
-      .where(eq(lessons.moduleId, moduleId))
-      .get()!.max + 1;
-
-  return db
-    .insert(lessons)
-    .values({
-      moduleId,
-      title,
-      content,
-      videoUrl,
-      position: pos,
-      durationMinutes,
-    })
-    .returning()
-    .get();
-}
-
-function updateLessonTitle(id: number, title: string) {
-  return db
-    .update(lessons)
-    .set({ title })
-    .where(eq(lessons.id, id))
-    .returning()
-    .get();
 }
 
 function deleteLesson(id: number) {
@@ -759,7 +721,7 @@ export async function action({ params, request }: Route.ActionArgs) {
         { status: 404 }
       );
     }
-    createLesson(moduleId, title, null, null, null, null);
+    createLesson(db, moduleId, title, null, null, null, null);
     return { success: true, field: "lesson" };
   }
 
@@ -776,7 +738,7 @@ export async function action({ params, request }: Route.ActionArgs) {
         { status: 404 }
       );
     }
-    updateLessonTitle(lessonId, title);
+    updateLesson(db, lessonId, { title });
     return { success: true, field: "lesson" };
   }
 
