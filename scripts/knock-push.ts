@@ -1,7 +1,8 @@
 import { spawnSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
+import { z } from "zod";
 import { writeKnockContent } from "./knock-content";
 
 // `npm run knock:push` loads this branch's knock/ into Knock Development, so a
@@ -39,6 +40,8 @@ export async function knockPush({
   for (const path of writeKnockContent(join(root, "knock"))) {
     log(`Regenerated ${relative(root, path)}`);
   }
+
+  await upsertPreferenceCategories({ root, token, fetch, log });
 
   const [command = "", ...cliArgs] = knockCli;
   const cli = spawnSync(
@@ -81,6 +84,68 @@ export async function knockPush({
 /** Development's default preference set, in Knock's Management API. */
 const DEFAULTS_URL =
   "https://control.knock.app/v1/environments/development/defaults";
+
+const CATEGORIES_URL = "https://control.knock.app/v1/preference_categories";
+
+/**
+ * Adds every category knock/ names to Knock's preference category catalog.
+ * Knock refuses a workflow, or a default preference set, whose category isn't
+ * in the catalog, and the CLI has no command for it.
+ *
+ * The catalog belongs to the Knock project, not to an environment, so this
+ * also reaches Production's. That's allowed from a branch: adding a name
+ * changes no workflow and no preference, and an upsert of a name that's
+ * already there changes nothing. It never deletes; archive a category by hand.
+ */
+export async function upsertPreferenceCategories({
+  root,
+  token,
+  fetch,
+  log,
+}: {
+  root: string;
+  token: string;
+  fetch: typeof globalThis.fetch;
+  log: (line: string) => void;
+}): Promise<void> {
+  const names = preferenceCategories(root);
+  for (const name of names) {
+    const response = await fetch(
+      `${CATEGORIES_URL}/${encodeURIComponent(name)}`,
+      { method: "PUT", headers: { Authorization: `Bearer ${token}` } }
+    );
+    if (!response.ok) {
+      throw new Error(
+        `Knock refused preference category "${name}": ${response.status} ${await response.text()}. Nothing was pushed.`
+      );
+    }
+  }
+  log(`Preference categories in Knock's catalog: ${names.join(", ")}.`);
+}
+
+/** Every category knock/ names: the default preference set's and each workflow's. */
+export function preferenceCategories(root: string): string[] {
+  const knockDir = join(root, "knock");
+  const defaults = z
+    .object({
+      preference_set: z.object({ categories: z.record(z.unknown()) }),
+    })
+    .parse(readJson(join(knockDir, "preferences/default.json")));
+  const names = new Set(Object.keys(defaults.preference_set.categories));
+  const workflowsDir = join(knockDir, "workflows");
+  for (const entry of readdirSync(workflowsDir, { withFileTypes: true })) {
+    if (!entry.isDirectory()) continue;
+    const workflow = z
+      .object({ categories: z.array(z.string()).optional() })
+      .parse(readJson(join(workflowsDir, entry.name, "workflow.json")));
+    for (const name of workflow.categories ?? []) names.add(name);
+  }
+  return [...names].sort();
+}
+
+function readJson(path: string): unknown {
+  return JSON.parse(readFileSync(path, "utf8"));
+}
 
 /** Names what was pushed: Knock's commit log then points back at git. */
 function commitMessage(root: string): string {
