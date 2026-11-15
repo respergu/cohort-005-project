@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { UserRole } from "~/db/schema";
 import { knockRefusal, type KnockConnection } from "~/lib/knock-browser";
+import { defaultPreferenceSetSchema } from "~/lib/knock-preference-set";
 import defaultPreferenceSet from "../../knock/preferences/default.json";
 
 // ─── Notification preferences ───
@@ -49,7 +50,7 @@ export type ChannelChoices = z.infer<typeof channelChoices>;
 export type PreferenceChoices = z.infer<typeof choicesSchema>;
 
 /** A category a person can mute. */
-export type MutableCategory = keyof PreferenceChoices;
+export type MuteableCategory = keyof PreferenceChoices;
 
 /**
  * Cadence's defaults: the default preference set that `npm run knock:push`
@@ -58,29 +59,21 @@ export type MutableCategory = keyof PreferenceChoices;
  */
 export const CADENCE_DEFAULTS: PreferenceChoices = choicesFromEntries(
   Object.entries(
-    z
-      .object({
-        preference_set: z.object({
-          categories: z.record(
-            z.string(),
-            z.object({ channel_types: z.record(z.string(), z.boolean()) })
-          ),
-        }),
-      })
-      .parse(defaultPreferenceSet).preference_set.categories
+    defaultPreferenceSetSchema.parse(defaultPreferenceSet).preference_set
+      .categories
   ).map(([category, { channel_types }]) => [category, channel_types])
 );
 
-// Keeps only the mutable categories, and checks each has both channels.
+// Keeps only the muteable categories, and checks each has both channels.
 function choicesFromEntries(
   entries: Array<[string, unknown]>
 ): PreferenceChoices {
   return choicesSchema.parse(Object.fromEntries(entries));
 }
 
-export type MutableRow = {
+export type MuteableRow = {
   locked: false;
-  category: MutableCategory;
+  category: MuteableCategory;
   label: string;
   /** When it's sent. */
   description: string;
@@ -99,9 +92,10 @@ export type LockedRow = {
   readOnly: string;
 };
 
-export type PreferenceRow = MutableRow | LockedRow;
+export type PreferenceRow = MuteableRow | LockedRow;
 
-const FEED_AND_EMAIL: PreferenceChannel[] = ["in_app_feed", "email"];
+/** Both channels, in the order /settings shows their toggles. */
+export const FEED_AND_EMAIL: PreferenceChannel[] = ["in_app_feed", "email"];
 
 // In the order /settings shows them. Each category key matches
 // knock/preferences/default.json and the workflows' `categories`.
@@ -207,7 +201,7 @@ export type NotificationPreferences = {
    * Saves one row, both channels, and nothing else. The first save for a
    * user Knock has never seen creates them in Knock.
    */
-  save(category: MutableCategory, choice: ChannelChoices): Promise<SaveResult>;
+  save(category: MuteableCategory, choice: ChannelChoices): Promise<SaveResult>;
 };
 
 export type SaveResult = "saved" | "error";

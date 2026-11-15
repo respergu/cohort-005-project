@@ -1,10 +1,12 @@
 import { and, eq, isNull, sql } from "drizzle-orm";
 import { coupons, courses, enrollments, purchases, users } from "~/db/schema";
+import type { Db, Tx } from "~/db/types";
 import {
   queueNotification,
   toNotificationUser,
 } from "~/lib/notification-outbox.server";
-import { getSeatAvailability, type Db } from "~/lib/refunds.server";
+import { getSeatAvailability } from "~/lib/refunds.server";
+import { getUser } from "~/lib/users.server";
 
 // ─── Enrollments ───
 // The two ways a Student gets an Enrollment: claiming a Seat, and buying the
@@ -23,8 +25,6 @@ export const SEAT_ON_HOLD =
 export const SEAT_REFUNDED =
   "This seat is no longer available. Ask the person who shared it with you.";
 const ALREADY_ENROLLED = "You are already enrolled in this course";
-
-type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
 
 function isEnrolled(tx: Tx, userId: number, courseId: number) {
   const existing = tx
@@ -51,10 +51,6 @@ function countSeatsLeft(tx: Tx, teamLicenceId: number): number {
     )
     .get();
   return row?.count ?? 0;
-}
-
-function getUser(tx: Tx, userId: number) {
-  return tx.select().from(users).where(eq(users.id, userId)).get();
 }
 
 function getCourse(tx: Tx, courseId: number) {
@@ -108,11 +104,11 @@ export function claimSeat(
 ): ClaimResult {
   return db.transaction((tx): ClaimResult => {
     const seat = tx.select().from(coupons).where(eq(coupons.code, code)).get();
-    if (!seat) return { ok: false, error: "Coupon not found" };
+    if (!seat) return { ok: false, error: "Seat not found" };
 
     const availability = getSeatAvailability(tx, seat);
     if (availability === "claimed") {
-      return { ok: false, error: "Coupon has already been redeemed" };
+      return { ok: false, error: "This seat has already been claimed" };
     }
     if (availability === "on_hold") return { ok: false, error: SEAT_ON_HOLD };
     if (availability === "refunded") return { ok: false, error: SEAT_REFUNDED };
@@ -132,7 +128,7 @@ export function claimSeat(
       return {
         ok: false,
         error:
-          "This coupon can only be redeemed from the same country as the purchaser",
+          "This seat can only be claimed from the same country as the purchaser",
       };
     }
 
@@ -187,25 +183,34 @@ export function claimSeat(
   });
 }
 
-export type EnrollResult =
+export type PurchaseResult =
   | { ok: true; enrollment: Enrollment; outboxRowIds: number[] }
   | { ok: false; error: string };
 
 /**
- * Gives the buyer of an Individual Purchase their Enrollment on the course,
- * and queues New Enrollment to its Instructor. Returns the outbox row ids for
+ * Records an Individual Purchase and gives the buyer their Enrollment on the
+ * course. The Purchase, the Enrollment and New Enrollment to the course's
+ * Instructor commit together or not at all. Returns the outbox row ids for
  * the route to send after the commit.
  */
-export function enrollUser(
+export function makeIndividualPurchase(
   db: Db,
   buyerId: number,
   courseId: number,
+  amountPaid: number,
+  country: string | null,
   now: Date
-): EnrollResult {
-  return db.transaction((tx): EnrollResult => {
+): PurchaseResult {
+  return db.transaction((tx): PurchaseResult => {
     if (isEnrolled(tx, buyerId, courseId)) {
       return { ok: false, error: ALREADY_ENROLLED };
     }
+
+    const purchase = tx
+      .insert(purchases)
+      .values({ userId: buyerId, courseId, amountPaid, country })
+      .returning()
+      .get();
 
     const enrollment = tx
       .insert(enrollments)
@@ -216,7 +221,7 @@ export function enrollUser(
     const buyer = getUser(tx, buyerId);
     const course = getCourse(tx, courseId);
     if (!buyer || !course) {
-      throw new Error(`Enrollment ${enrollment.id} has no buyer or course.`);
+      throw new Error(`Purchase ${purchase.id} has no buyer or course.`);
     }
 
     return {

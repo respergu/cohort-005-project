@@ -1,6 +1,4 @@
 import { and, eq } from "drizzle-orm";
-import type { BetterSQLite3Database } from "drizzle-orm/better-sqlite3";
-import * as schema from "~/db/schema";
 import {
   comments,
   courses,
@@ -9,12 +7,13 @@ import {
   modules,
   users,
 } from "~/db/schema";
+import type { Db, Queryable } from "~/db/types";
 import { MAX_COMMENT_LENGTH, MIN_COMMENT_LENGTH } from "~/lib/comments";
 import {
   queueNotification,
   toNotificationUser,
-  type Queryable,
 } from "~/lib/notification-outbox.server";
+import { getUser } from "~/lib/users.server";
 
 // ─── Comments ───
 // Posting a Comment on a lesson: a top-level Comment or a Reply. The lesson
@@ -27,8 +26,6 @@ import {
 //
 // Takes the database first, so tests can hand in an in-memory one. Uses
 // positional parameters (project convention).
-
-export type Db = BetterSQLite3Database<typeof schema>;
 
 type Comment = typeof comments.$inferSelect;
 
@@ -108,13 +105,13 @@ export function createComment(
       .get();
 
     // Notifications go in the same transaction, so they commit with the
-    // Comment or not at all. The poster is the actor, never a recipient.
-    const poster = tx.select().from(users).where(eq(users.id, userId)).get();
-    const outboxRowIds = !poster
+    // Comment or not at all. The author is the actor, never a recipient.
+    const author = getUser(tx, userId);
+    const outboxRowIds = !author
       ? []
       : question === null
-        ? queueNewQuestion(tx, lesson, poster, trimmed, now)
-        : queueReply(tx, lesson, question, poster, trimmed, now);
+        ? queueNewQuestion(tx, lesson, author, trimmed, now)
+        : queueReply(tx, lesson, question, author, trimmed, now);
 
     return { ok: true, comment, outboxRowIds };
   });
@@ -192,11 +189,7 @@ function queueNewQuestion(
   body: string,
   now: Date
 ): number[] {
-  const instructor = tx
-    .select()
-    .from(users)
-    .where(eq(users.id, lesson.course.instructorId))
-    .get();
+  const instructor = getUser(tx, lesson.course.instructorId);
   if (!instructor) return [];
 
   return queueNotification(

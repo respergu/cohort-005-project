@@ -2,6 +2,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import Knock, { APIError, type ClientOptions } from "@knocklabs/node";
 import type { NotificationData, NotificationUser } from "~/db/schema";
+import type { WorkflowKey } from "~/lib/notification-workflows";
 
 // ─── Notification transports ───
 // The sender hands each outbox row to a transport, the way sendEmail hands
@@ -10,7 +11,7 @@ import type { NotificationData, NotificationUser } from "~/db/schema";
 
 /** One whole Knock trigger, exactly as Knock receives it. */
 export type KnockTrigger = {
-  workflow: string;
+  workflow: WorkflowKey;
   recipients: NotificationUser[];
   actor: NotificationUser | null;
   data: NotificationData;
@@ -64,6 +65,8 @@ export function mightPassOnRetry(error: unknown): boolean {
     return true;
   }
   const { status } = error;
+  // A 408 is a Request Timeout. The PRD retries timeouts, so a 408 is
+  // retried like any other timeout, not parked like the other 4xx.
   return status === 408 || status === 429 || status < 400 || status >= 500;
 }
 

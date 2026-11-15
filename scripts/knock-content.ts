@@ -116,7 +116,7 @@ function withChannelKeys(
   });
 }
 
-function readJsonFile(path: string): unknown {
+export function readJsonFile(path: string): unknown {
   if (!existsSync(path)) throw new Error(`${path} is missing.`);
   return JSON.parse(readFileSync(path, "utf8"));
 }

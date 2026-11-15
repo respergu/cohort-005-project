@@ -1,5 +1,5 @@
 {% if total_activities > 1 %}
-<p style="margin: 0 0 16px;"><strong>{{ total_activities }} new Questions</strong> on <strong>{{ data.course_title | escape }}</strong> are waiting for an answer.</p>
+<p style="margin: 0 0 16px;"><strong>{{ total_activities }} new Questions</strong> on <strong>{{ data.course_title | escape }}</strong> are waiting for a Reply.</p>
 {% else %}
 <p style="margin: 0 0 16px;"><strong>{{ data.asker_name | escape }}</strong> asked a Question on <strong>{{ data.lesson_title | escape }}</strong> in <strong>{{ data.course_title | escape }}</strong>:</p>
 <p style="margin: 0 0 16px;">“{{ data.question_excerpt | escape }}”</p>

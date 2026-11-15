@@ -1,7 +1,6 @@
 import { and, asc, eq, inArray, isNull, lte, or } from "drizzle-orm";
-import type { BetterSQLite3Database } from "drizzle-orm/better-sqlite3";
-import type * as schema from "~/db/schema";
 import { notificationOutbox, OutboxRowStatus } from "~/db/schema";
+import type { Db } from "~/db/types";
 import { db as serverDb } from "~/db";
 import type { OutboxRow } from "~/lib/notification-outbox.server";
 import {
@@ -24,8 +23,6 @@ import {
 // exponential backoff for about an hour, then parked. Any other 4xx parks the
 // row at once. Every row, waiting or parked, is dropped 24 hours after it was
 // written. Parking and dropping are only ever log lines.
-
-type Db = BetterSQLite3Database<typeof schema>;
 
 export type NotificationSender = {
   /** Sends these rows, if they are still waiting and due. */
@@ -290,16 +287,21 @@ export function startNotificationSender(
  * For routes, after the domain function's transaction has committed: starts
  * sending these outbox rows without waiting for them. Never throws, so the
  * action succeeds whatever happens to the send; the sweep retries failures.
+ * Routes leave out `sender` to use the server's; tests pass their own.
  */
-export function sendInBackground(rowIds: number[]): void {
+export function sendInBackground(
+  rowIds: number[],
+  sender?: NotificationSender
+): void {
   if (rowIds.length === 0) return;
   // Inside the promise chain, so even a sender that can't start only logs.
   Promise.resolve()
     .then(() => {
-      const sender =
+      const chosen =
+        sender ??
         running.__cadenceNotificationSender?.sender ??
         startNotificationSender();
-      return sender.send(rowIds, new Date());
+      return chosen.send(rowIds, new Date());
     })
     .catch((error) => {
       console.error(`Sending outbox rows ${rowIds.join(", ")} failed.`, error);

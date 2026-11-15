@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { createTestDb } from "~/test/setup";
 import type { NotificationUser } from "~/db/schema";
-import { listOutboxRows, queueNotification } from "./notification-outbox.server";
+import { listOutboxRows } from "~/test/outbox";
+import { queueNotification } from "./notification-outbox.server";
 
 const NOW = new Date(2026, 9, 6, 12, 0, 0);
 

@@ -1,7 +1,5 @@
 import { and, asc, desc, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
-import type { BetterSQLite3Database } from "drizzle-orm/better-sqlite3";
 import { alias } from "drizzle-orm/sqlite-core";
-import * as schema from "~/db/schema";
 import {
   coupons,
   courses,
@@ -17,11 +15,13 @@ import {
   RefundStatus,
   UserRole,
 } from "~/db/schema";
+import type { Db, Tx, Queryable } from "~/db/types";
 import {
   queueNotification,
   toNotificationUser,
 } from "~/lib/notification-outbox.server";
 import type { WorkflowData } from "~/lib/notification-workflows";
+import { getUser } from "~/lib/users.server";
 import { formatPrice } from "~/lib/utils";
 import {
   REFUND_COMPLETION_LIMIT,
@@ -37,10 +37,6 @@ import {
 //
 // Every function takes the database first, so tests can hand in an in-memory
 // one. Uses positional parameters (project convention).
-
-export type Db = BetterSQLite3Database<typeof schema>;
-type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
-type Queryable = Db | Tx;
 
 type Purchase = typeof purchases.$inferSelect;
 type Seat = typeof coupons.$inferSelect;
@@ -828,10 +824,6 @@ function queueDecisionNotifications(
     now
   );
   return [...decidedRowIds, ...approvedRowIds];
-}
-
-function getUser(db: Queryable, userId: number) {
-  return db.select().from(users).where(eq(users.id, userId)).get();
 }
 
 /**

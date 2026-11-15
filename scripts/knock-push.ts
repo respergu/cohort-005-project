@@ -3,7 +3,8 @@ import { readdirSync, readFileSync } from "node:fs";
 import { join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import { z } from "zod";
-import { writeKnockContent } from "./knock-content";
+import { defaultPreferenceSetSchema } from "../app/lib/knock-preference-set";
+import { readJsonFile, writeKnockContent } from "./knock-content";
 
 // `npm run knock:push` loads this branch's knock/ into Knock Development, so a
 // developer can trigger it with KNOCK_TRIGGERS=on before merging. It only ever
@@ -12,15 +13,26 @@ import { writeKnockContent } from "./knock-content";
 /** The Knock CLI, pinned. Run through npx so its ~800 packages stay out of npm install. */
 export const KNOCK_CLI = ["npx", "--yes", "@knocklabs/cli@1.6.2"];
 
-export type KnockPushOptions = {
+/** What npm run knock:push, and the Knock Actions in knock-ci.ts, take. */
+export type KnockScriptOptions = {
   /** The repo root, holding knock.json and knock/. */
   root: string;
-  /** Where KNOCK_SERVICE_TOKEN comes from. */
+  /** Where KNOCK_SERVICE_TOKEN comes from, and in the Actions GITHUB_REF and GITHUB_SHA. */
   env: NodeJS.ProcessEnv;
   /** The command that runs the Knock CLI. */
   knockCli?: string[];
   fetch?: typeof fetch;
   log?: (line: string) => void;
+};
+
+/** What each call to Knock's management API takes. */
+export type KnockApiOptions = {
+  /** The repo root, holding knock/. */
+  root: string;
+  /** The KNOCK_SERVICE_TOKEN it authenticates with. */
+  token: string;
+  fetch: typeof globalThis.fetch;
+  log: (line: string) => void;
 };
 
 export async function knockPush({
@@ -29,7 +41,7 @@ export async function knockPush({
   knockCli = KNOCK_CLI,
   fetch = globalThis.fetch,
   log = console.log,
-}: KnockPushOptions): Promise<void> {
+}: KnockScriptOptions): Promise<void> {
   const token = env.KNOCK_SERVICE_TOKEN;
   if (!token) {
     throw new Error(
@@ -82,12 +94,7 @@ async function setDevelopmentVariables({
   token,
   fetch,
   log,
-}: {
-  root: string;
-  token: string;
-  fetch: typeof globalThis.fetch;
-  log: (line: string) => void;
-}): Promise<void> {
+}: KnockApiOptions): Promise<void> {
   const variables = z
     .record(
       z.object({
@@ -95,7 +102,7 @@ async function setDevelopmentVariables({
         environment_values: z.object({ development: z.string().min(1) }),
       })
     )
-    .parse(readJson(join(root, "knock/variables.json")));
+    .parse(readJsonFile(join(root, "knock/variables.json")));
   for (const [key, variable] of Object.entries(variables)) {
     const { type } = variable;
     const development = variable.environment_values.development;
@@ -129,7 +136,7 @@ export function runKnockCli(
     root,
     env,
     knockCli = KNOCK_CLI,
-  }: { root: string; env: NodeJS.ProcessEnv; knockCli?: string[] },
+  }: Pick<KnockScriptOptions, "root" | "env" | "knockCli">,
   args: string[],
   explain = ""
 ): void {
@@ -159,13 +166,7 @@ export async function pushDefaultPreferences({
   token,
   fetch,
   log,
-}: {
-  root: string;
-  environment: KnockEnvironment;
-  token: string;
-  fetch: typeof globalThis.fetch;
-  log: (line: string) => void;
-}): Promise<void> {
+}: KnockApiOptions & { environment: KnockEnvironment }): Promise<void> {
   const response = await fetch(
     `https://control.knock.app/v1/environments/${environment}/defaults`,
     {
@@ -202,12 +203,7 @@ export async function upsertPreferenceCategories({
   token,
   fetch,
   log,
-}: {
-  root: string;
-  token: string;
-  fetch: typeof globalThis.fetch;
-  log: (line: string) => void;
-}): Promise<void> {
+}: KnockApiOptions): Promise<void> {
   const names = preferenceCategories(root);
   for (const name of names) {
     const response = await fetch(
@@ -226,25 +222,19 @@ export async function upsertPreferenceCategories({
 /** Every category knock/ names: the default preference set's and each workflow's. */
 export function preferenceCategories(root: string): string[] {
   const knockDir = join(root, "knock");
-  const defaults = z
-    .object({
-      preference_set: z.object({ categories: z.record(z.unknown()) }),
-    })
-    .parse(readJson(join(knockDir, "preferences/default.json")));
+  const defaults = defaultPreferenceSetSchema.parse(
+    readJsonFile(join(knockDir, "preferences/default.json"))
+  );
   const names = new Set(Object.keys(defaults.preference_set.categories));
   const workflowsDir = join(knockDir, "workflows");
   for (const entry of readdirSync(workflowsDir, { withFileTypes: true })) {
     if (!entry.isDirectory()) continue;
     const workflow = z
       .object({ categories: z.array(z.string()).optional() })
-      .parse(readJson(join(workflowsDir, entry.name, "workflow.json")));
+      .parse(readJsonFile(join(workflowsDir, entry.name, "workflow.json")));
     for (const name of workflow.categories ?? []) names.add(name);
   }
   return [...names].sort();
-}
-
-function readJson(path: string): unknown {
-  return JSON.parse(readFileSync(path, "utf8"));
 }
 
 /** Names what was pushed: Knock's commit log then points back at git. */

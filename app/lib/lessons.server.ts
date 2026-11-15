@@ -1,6 +1,4 @@
 import { asc, eq, sql } from "drizzle-orm";
-import type { BetterSQLite3Database } from "drizzle-orm/better-sqlite3";
-import * as schema from "~/db/schema";
 import {
   CourseStatus,
   courses,
@@ -9,10 +7,12 @@ import {
   modules,
   users,
 } from "~/db/schema";
+import type { Db, Tx, Queryable } from "~/db/types";
 import {
   queueNotification,
   toNotificationUser,
 } from "~/lib/notification-outbox.server";
+import { getUser } from "~/lib/users.server";
 
 // ─── Lessons ───
 // Creating and editing a lesson. Both run in one transaction, which also
@@ -20,10 +20,6 @@ import {
 //
 // Every function takes the database first, so tests can hand in an in-memory
 // one. Uses positional parameters (project convention).
-
-type Db = BetterSQLite3Database<typeof schema>;
-type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
-type Queryable = Db | Tx;
 
 export type Lesson = typeof lessons.$inferSelect;
 
@@ -142,7 +138,7 @@ function queueNewLesson(
     .where(eq(enrollments.courseId, course.id))
     .orderBy(asc(users.id))
     .all();
-  const actor = tx.select().from(users).where(eq(users.id, actorId)).get();
+  const actor = getUser(tx, actorId);
 
   return queueNotification(
     tx,

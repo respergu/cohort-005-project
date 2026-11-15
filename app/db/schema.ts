@@ -7,6 +7,7 @@ import {
   uniqueIndex,
   type AnySQLiteColumn,
 } from "drizzle-orm/sqlite-core";
+import type { WorkflowKey } from "../lib/notification-workflows";
 
 export enum UserRole {
   Student = "student",
@@ -402,7 +403,7 @@ export type NotificationData = Record<string, string | number | boolean>;
 
 export const notificationOutbox = sqliteTable("notification_outbox", {
   id: integer("id").primaryKey({ autoIncrement: true }),
-  workflow: text("workflow").notNull(),
+  workflow: text("workflow").notNull().$type<WorkflowKey>(),
   // At most 1,000, Knock's limit for one trigger. The actor is never one.
   recipients: text("recipients", { mode: "json" })
     .notNull()

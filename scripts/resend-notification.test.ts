@@ -8,12 +8,10 @@ import { drizzle } from "drizzle-orm/better-sqlite3";
 import { migrate } from "drizzle-orm/better-sqlite3/migrator";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import * as schema from "../app/db/schema";
-import {
-  listOutboxRows,
-  queueNotification,
-} from "../app/lib/notification-outbox.server";
+import { queueNotification } from "../app/lib/notification-outbox.server";
 import { createNotificationSender } from "../app/lib/notification-sender.server";
 import { fakeNotificationTransport } from "../app/test/fake-notification-transport";
+import { listOutboxRows } from "../app/test/outbox";
 
 // `npm run notifications:resend -- <row id>` is run the way an operator runs
 // it, against a data.db in a scratch directory. Sending is off, so the row

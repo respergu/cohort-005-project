@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from "vitest";
 import { eq } from "drizzle-orm";
 import { createTestDb, seedBaseData } from "~/test/setup";
 import * as schema from "~/db/schema";
-import { listOutboxRows } from "./notification-outbox.server";
+import { listOutboxRows } from "~/test/outbox";
 import { createComment, editComment } from "./comments.server";
 
 type TestDb = ReturnType<typeof createTestDb>;

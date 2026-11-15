@@ -6,10 +6,11 @@ import { cn } from "~/lib/utils";
 import { connectKnock, type KnockClientConfig } from "~/lib/knock-browser";
 import {
   createNotificationPreferences,
+  FEED_AND_EMAIL,
   preferenceRowsFor,
   type ChannelChoices,
-  type MutableCategory,
-  type MutableRow,
+  type MuteableCategory,
+  type MuteableRow,
   type NotificationPreferences as Preferences,
   type PreferenceChannel,
   type PreferenceChoices,
@@ -42,10 +43,12 @@ export function NotificationPreferences({
 }) {
   const rows = preferenceRowsFor(person);
   const { preferences, loaded, setChoices } = usePreferences(config);
-  const [saving, setSaving] = useState<ReadonlySet<MutableCategory>>(new Set());
+  const [saving, setSaving] = useState<ReadonlySet<MuteableCategory>>(
+    new Set()
+  );
 
   async function toggle(
-    category: MutableCategory,
+    category: MuteableCategory,
     channel: PreferenceChannel,
     on: boolean
   ) {
@@ -69,7 +72,7 @@ export function NotificationPreferences({
   return (
     <div className="divide-y">
       <div className="flex items-end justify-end gap-2 pb-2 text-xs font-medium text-muted-foreground">
-        {(["in_app_feed", "email"] as const).map((channel) => (
+        {FEED_AND_EMAIL.map((channel) => (
           <span key={channel} className="w-12 text-center">
             {CHANNEL_NAMES[channel]}
           </span>
@@ -90,7 +93,7 @@ export function NotificationPreferences({
             </div>
           </div>
         ) : (
-          <MutableRowToggles
+          <MuteableRowToggles
             key={row.category}
             row={row}
             choice={
@@ -110,18 +113,18 @@ export function NotificationPreferences({
   );
 }
 
-function MutableRowToggles({
+function MuteableRowToggles({
   row,
   choice,
   disabled,
   onToggle,
 }: {
-  row: MutableRow;
+  row: MuteableRow;
   /** Null until Knock answers. */
   choice: ChannelChoices | null;
   disabled: boolean;
   onToggle: (
-    category: MutableCategory,
+    category: MuteableCategory,
     channel: PreferenceChannel,
     on: boolean
   ) => void;
@@ -135,7 +138,7 @@ function MutableRowToggles({
           {row.emailNote && ` ${row.emailNote}`}
         </p>
       </div>
-      {(["in_app_feed", "email"] as const).map((channel) => (
+      {FEED_AND_EMAIL.map((channel) => (
         <div key={channel} className="flex w-12 justify-center pt-0.5">
           {row.channels.includes(channel) ? (
             <Toggle
@@ -213,7 +216,7 @@ function usePreferences(config: KnockClientConfig | null) {
     };
   }, [firstConfig]);
 
-  function setChoices(category: MutableCategory, choice: ChannelChoices) {
+  function setChoices(category: MuteableCategory, choice: ChannelChoices) {
     setLoaded((state) =>
       state.status === "ready"
         ? { ...state, choices: { ...state.choices, [category]: choice } }
