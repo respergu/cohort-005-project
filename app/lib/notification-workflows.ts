@@ -32,6 +32,34 @@ export const notificationWorkflows = {
       reason: z.string().min(1),
     })
     .strict(),
+
+  /** To the buyer when a Platform Admin approves or declines their Refund Request. Locked. */
+  "refund-request-decided": z
+    .object({
+      ...everyTrigger,
+      decision: z.enum(["approved", "declined"]),
+      /** The Platform Admin's note. Required to decline, optional to approve. */
+      note: z.string().min(1).optional(),
+      /** What the buyer paid, formatted, such as "$79.00". The Refund is all of it. */
+      amount_paid: z.string().min(1),
+    })
+    .strict(),
+
+  /** To the course's Instructor when a Platform Admin approves a Refund Request. */
+  "refund-request-approved": z
+    .object({
+      ...everyTrigger,
+      buyer_name: z.string().min(1),
+      /**
+       * What the approval took away. An Individual Purchase's buyer loses their
+       * Enrollment, unless they also hold a Claimed Seat on the course. A Team
+       * Licence loses its Unclaimed Seats.
+       */
+      outcome: z.enum(["enrollment_lost", "enrollment_kept", "seats_cancelled"]),
+      /** How many Unclaimed Seats were cancelled. Only for `seats_cancelled`. */
+      seats_cancelled: z.number().int().min(1).optional(),
+    })
+    .strict(),
 } satisfies Record<string, z.ZodType<NotificationData>>;
 
 export type WorkflowKey = keyof typeof notificationWorkflows;

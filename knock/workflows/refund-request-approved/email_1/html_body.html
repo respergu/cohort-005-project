@@ -1,0 +1,8 @@
+{% if data.outcome == "seats_cancelled" %}
+<p style="margin: 0 0 16px;">We have approved a refund for <strong>{{ data.buyer_name | escape }}</strong>’s Team Licence on <strong>{{ data.course_title | escape }}</strong>. Its {{ data.seats_cancelled | escape }} Unclaimed {% if data.seats_cancelled == 1 %}Seat was{% else %}Seats were{% endif %} cancelled, so nobody can claim {% if data.seats_cancelled == 1 %}it{% else %}them{% endif %} now.</p>
+{% elsif data.outcome == "enrollment_kept" %}
+<p style="margin: 0 0 16px;">We have approved a refund for <strong>{{ data.buyer_name | escape }}</strong> on <strong>{{ data.course_title | escape }}</strong>. They keep their Enrollment, because they also claimed a Seat on the course.</p>
+{% else %}
+<p style="margin: 0 0 16px;">We have approved a refund for <strong>{{ data.buyer_name | escape }}</strong> on <strong>{{ data.course_title | escape }}</strong>, so they no longer have an Enrollment on it. Their progress is kept in case they come back.</p>
+{% endif %}
+<p style="margin: 0;"><a href="{{ vars.app_url }}{{ data.path | escape }}" style="color: #111111; text-decoration: underline;">See the course’s Students</a></p>

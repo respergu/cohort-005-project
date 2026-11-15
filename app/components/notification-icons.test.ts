@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { Bell, Receipt, Ticket, TicketCheck } from "lucide-react";
+import { Bell, Receipt, ReceiptText, Ticket, TicketCheck } from "lucide-react";
 import {
   notificationIconFor,
   pickNotificationIcon,
@@ -9,6 +9,18 @@ import {
 describe("notificationIconFor", () => {
   it("shows a receipt for Refund Request raised", () => {
     expect(notificationIconFor("refund-request-raised", {}).Icon).toBe(Receipt);
+  });
+
+  it("shows the buyer a receipt for Refund Request decided", () => {
+    expect(notificationIconFor("refund-request-decided", {}).Icon).toBe(
+      Receipt
+    );
+  });
+
+  it("shows the Instructor an itemised receipt for Refund Request approved", () => {
+    expect(notificationIconFor("refund-request-approved", {}).Icon).toBe(
+      ReceiptText
+    );
   });
 
   it("falls back to a bell for a workflow it doesn't know", () => {

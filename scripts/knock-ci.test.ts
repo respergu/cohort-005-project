@@ -106,25 +106,20 @@ describe("the merge-to-main Action (knock-ci.ts sync)", () => {
   );
 
   it("fills the category catalog, pushes variables and default preferences to both environments, then pushes and commits to Development, then promotes", async () => {
-    writeFileSync(
-      join(root, "knock/preferences/default.json"),
-      JSON.stringify({
-        preference_set: {
-          categories: {
-            "refund-request-raised": {
-              channel_types: { in_app_feed: true, email: true },
-            },
-            refunds: { channel_types: { in_app_feed: true, email: true } },
-          },
-        },
-      })
-    );
-
+    // The real default preference set has one category per /settings row,
+    // and every workflow's category must be one of them, so adding a
+    // workflow doesn't change this list.
     await sync(mainEnv);
 
     expect(calls()).toEqual([
+      "PUT https://control.knock.app/v1/preference_categories/new-enrollment",
+      "PUT https://control.knock.app/v1/preference_categories/new-lesson",
+      "PUT https://control.knock.app/v1/preference_categories/new-question",
+      "PUT https://control.knock.app/v1/preference_categories/refund-request-approved",
       "PUT https://control.knock.app/v1/preference_categories/refund-request-raised",
       "PUT https://control.knock.app/v1/preference_categories/refunds",
+      "PUT https://control.knock.app/v1/preference_categories/reply",
+      "PUT https://control.knock.app/v1/preference_categories/seat-claims",
       "knock variable push --force",
       "PUT https://control.knock.app/v1/environments/development/defaults",
       "PUT https://control.knock.app/v1/environments/production/defaults",

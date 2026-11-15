@@ -1,4 +1,4 @@
-import { Bell, Receipt, type LucideIcon } from "lucide-react";
+import { Bell, Receipt, ReceiptText, type LucideIcon } from "lucide-react";
 import type { WorkflowKey } from "~/lib/notification-workflows";
 
 // ─── Notification Feed icons ───
@@ -26,6 +26,14 @@ export const notificationIcons = {
   "refund-request-raised": {
     Icon: Receipt,
     tone: "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300",
+  },
+  "refund-request-decided": {
+    Icon: Receipt,
+    tone: "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300",
+  },
+  "refund-request-approved": {
+    Icon: ReceiptText,
+    tone: "bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300",
   },
 } satisfies Record<WorkflowKey, IconRule>;
 
