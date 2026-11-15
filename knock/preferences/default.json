@@ -1,0 +1,14 @@
+{
+  "preference_set": {
+    "categories": {
+      "refund-request-raised": { "channel_types": { "in_app_feed": true, "email": true } },
+      "refund-request-approved": { "channel_types": { "in_app_feed": true, "email": false } },
+      "seat-claims": { "channel_types": { "in_app_feed": true, "email": true } },
+      "new-enrollment": { "channel_types": { "in_app_feed": true, "email": false } },
+      "new-question": { "channel_types": { "in_app_feed": true, "email": true } },
+      "reply": { "channel_types": { "in_app_feed": true, "email": true } },
+      "new-lesson": { "channel_types": { "in_app_feed": true, "email": false } },
+      "refunds": { "channel_types": { "in_app_feed": true, "email": true } }
+    }
+  }
+}

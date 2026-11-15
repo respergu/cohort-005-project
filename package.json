@@ -20,6 +20,8 @@
     "notifications:resend": "tsx --env-file-if-exists=.env scripts/resend-notification.ts",
     "seed-wayfinder-issues": "bash scripts/seed-wayfinder-issues.sh",
     "knock:setup": "bash scripts/knock-setup.sh",
+    "knock:generate": "tsx scripts/knock-content.ts",
+    "knock:push": "tsx --env-file-if-exists=.env scripts/knock-push.ts",
     "db:migrate": "drizzle-kit migrate",
     "loc": "git ls-files | grep -vE '(lock|.db|_snapshot.json)' | xargs wc -l"
   },

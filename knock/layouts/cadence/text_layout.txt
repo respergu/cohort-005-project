@@ -1,0 +1,10 @@
+Cadence
+
+Hi {{ recipient.name }},
+
+{{ content }}
+
+— The Cadence team
+
+---
+Choose which emails Cadence sends you in Settings: {{ vars.app_url }}/settings#notifications

@@ -1,0 +1,11 @@
+{
+  "app_url": {
+    "type": "public",
+    "description": "Cadence's origin, with no trailing slash. Templates build links from it and data.path.",
+    "value": "http://localhost:5173",
+    "environment_values": {
+      "development": "http://localhost:5173",
+      "production": "https://cadence.dev"
+    }
+  }
+}
