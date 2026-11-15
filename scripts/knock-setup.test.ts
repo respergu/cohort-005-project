@@ -245,7 +245,7 @@ describe("npm run knock:setup", () => {
 
     expect(status).toBe(0);
     expect(output).toMatch(
-      /still to do by hand:\n.*In-app channel key is in-app-feed, not knock-in-app/
+      /still to do by hand:\n.*In-app channel key is in-app-feed, not in-app/
     );
   });
 
