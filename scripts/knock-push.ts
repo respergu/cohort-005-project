@@ -3,7 +3,8 @@ import { readdirSync, readFileSync } from "node:fs";
 import { join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import { z } from "zod";
-import { writeKnockContent } from "./knock-content";
+import { defaultPreferenceSetSchema } from "../app/lib/knock-preference-set";
+import { readJsonFile, writeKnockContent } from "./knock-content";
 
 // `npm run knock:push` loads this branch's knock/ into Knock Development, so a
 // developer can trigger it with KNOCK_TRIGGERS=on before merging. It only ever
@@ -95,7 +96,7 @@ async function setDevelopmentVariables({
         environment_values: z.object({ development: z.string().min(1) }),
       })
     )
-    .parse(readJson(join(root, "knock/variables.json")));
+    .parse(readJsonFile(join(root, "knock/variables.json")));
   for (const [key, variable] of Object.entries(variables)) {
     const { type } = variable;
     const development = variable.environment_values.development;
@@ -226,25 +227,19 @@ export async function upsertPreferenceCategories({
 /** Every category knock/ names: the default preference set's and each workflow's. */
 export function preferenceCategories(root: string): string[] {
   const knockDir = join(root, "knock");
-  const defaults = z
-    .object({
-      preference_set: z.object({ categories: z.record(z.unknown()) }),
-    })
-    .parse(readJson(join(knockDir, "preferences/default.json")));
+  const defaults = defaultPreferenceSetSchema.parse(
+    readJsonFile(join(knockDir, "preferences/default.json"))
+  );
   const names = new Set(Object.keys(defaults.preference_set.categories));
   const workflowsDir = join(knockDir, "workflows");
   for (const entry of readdirSync(workflowsDir, { withFileTypes: true })) {
     if (!entry.isDirectory()) continue;
     const workflow = z
       .object({ categories: z.array(z.string()).optional() })
-      .parse(readJson(join(workflowsDir, entry.name, "workflow.json")));
+      .parse(readJsonFile(join(workflowsDir, entry.name, "workflow.json")));
     for (const name of workflow.categories ?? []) names.add(name);
   }
   return [...names].sort();
-}
-
-function readJson(path: string): unknown {
-  return JSON.parse(readFileSync(path, "utf8"));
 }
 
 /** Names what was pushed: Knock's commit log then points back at git. */

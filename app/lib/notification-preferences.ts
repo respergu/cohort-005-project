@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { UserRole } from "~/db/schema";
 import { knockRefusal, type KnockConnection } from "~/lib/knock-browser";
+import { defaultPreferenceSetSchema } from "~/lib/knock-preference-set";
 import defaultPreferenceSet from "../../knock/preferences/default.json";
 
 // ─── Notification preferences ───
@@ -58,16 +59,8 @@ export type MutableCategory = keyof PreferenceChoices;
  */
 export const CADENCE_DEFAULTS: PreferenceChoices = choicesFromEntries(
   Object.entries(
-    z
-      .object({
-        preference_set: z.object({
-          categories: z.record(
-            z.string(),
-            z.object({ channel_types: z.record(z.string(), z.boolean()) })
-          ),
-        }),
-      })
-      .parse(defaultPreferenceSet).preference_set.categories
+    defaultPreferenceSetSchema.parse(defaultPreferenceSet).preference_set
+      .categories
   ).map(([category, { channel_types }]) => [category, channel_types])
 );
 
