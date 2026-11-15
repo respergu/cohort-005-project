@@ -43,47 +43,94 @@ export async function knockPush({
 
   await upsertPreferenceCategories({ root, token, fetch, log });
 
-  const [command = "", ...cliArgs] = knockCli;
-  const cli = spawnSync(
-    command,
+  runKnockCli(
+    { root, env, knockCli },
     [
-      ...cliArgs,
       "push",
       "--environment=development",
       "--commit",
       `--commit-message=${commitMessage(root)}`,
     ],
-    { cwd: root, env, stdio: "inherit" }
+    "It may have pushed some resources before it stopped; the default preference set wasn't pushed."
   );
-  if (cli.status !== 0) {
-    throw new Error(
-      `knock push failed (${cli.error?.message ?? `exit ${cli.status}`}). It may have pushed some resources before it stopped; the default preference set wasn't pushed.`
-    );
-  }
 
-  // The CLI has no command for an environment's default preference set.
-  const response = await fetch(DEFAULTS_URL, {
-    method: "PUT",
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-    },
-    body: readFileSync(join(root, "knock/preferences/default.json"), "utf8"),
+  await pushDefaultPreferences({
+    root,
+    environment: "development",
+    token,
+    fetch,
+    log,
   });
-  if (!response.ok) {
-    throw new Error(
-      `Knock refused the default preference set: ${response.status} ${await response.text()}`
-    );
-  }
-  log("Pushed the default preference set to Development.");
   log(
     "knock/variables.json isn't pushed from a branch: a variable push writes every environment's values, so only the merge-to-main job does it."
   );
 }
 
-/** Development's default preference set, in Knock's Management API. */
-const DEFAULTS_URL =
-  "https://control.knock.app/v1/environments/development/defaults";
+/**
+ * Runs the Knock CLI from the repo root, where it finds knock.json, showing its
+ * output as it goes. The CLI reads KNOCK_SERVICE_TOKEN from env, so the token
+ * never appears in its arguments. Throws when the CLI fails, adding `explain`.
+ */
+export function runKnockCli(
+  {
+    root,
+    env,
+    knockCli = KNOCK_CLI,
+  }: { root: string; env: NodeJS.ProcessEnv; knockCli?: string[] },
+  args: string[],
+  explain = ""
+): void {
+  const [command = "", ...cliArgs] = knockCli;
+  const cli = spawnSync(command, [...cliArgs, ...args], {
+    cwd: root,
+    env,
+    stdio: "inherit",
+  });
+  if (cli.status === 0) return;
+  const name = args.filter((arg) => !arg.startsWith("-")).join(" ");
+  throw new Error(
+    `knock ${name} failed (${cli.error?.message ?? `exit ${cli.status}`}).${explain ? ` ${explain}` : ""}`
+  );
+}
+
+export type KnockEnvironment = "development" | "production";
+
+/**
+ * Replaces an environment's default preference set with
+ * knock/preferences/default.json. It goes live at once: it isn't committed or
+ * promoted, and the CLI has no command for it.
+ */
+export async function pushDefaultPreferences({
+  root,
+  environment,
+  token,
+  fetch,
+  log,
+}: {
+  root: string;
+  environment: KnockEnvironment;
+  token: string;
+  fetch: typeof globalThis.fetch;
+  log: (line: string) => void;
+}): Promise<void> {
+  const response = await fetch(
+    `https://control.knock.app/v1/environments/${environment}/defaults`,
+    {
+      method: "PUT",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: readFileSync(join(root, "knock/preferences/default.json"), "utf8"),
+    }
+  );
+  if (!response.ok) {
+    throw new Error(
+      `Knock refused ${environment}'s default preference set: ${response.status} ${await response.text()}`
+    );
+  }
+  log(`Pushed the default preference set to ${environment}.`);
+}
 
 const CATEGORIES_URL = "https://control.knock.app/v1/preference_categories";
 
