@@ -8,6 +8,7 @@ import { eq } from "drizzle-orm";
 import { parseFormData, parseParams } from "~/lib/validation";
 import { raiseRefundRequest } from "~/lib/refunds.server";
 import { sendEmail } from "~/lib/mailer.server";
+import { sendInBackground } from "~/lib/notification-sender.server";
 
 const refundParamsSchema = z.object({
   slug: z.string().min(1),
@@ -72,6 +73,9 @@ export async function action({ params, request }: Route.ActionArgs) {
     throw data(result.error, { status: result.status });
   }
 
+  // The Refund Request and its Notification rows have committed. Sending them
+  // doesn't hold up the response, and can't fail it.
+  sendInBackground(result.outboxRowIds);
   await sendEmail(result.email);
 
   return redirect(result.kind === "team_licence" ? "/team" : "/settings");

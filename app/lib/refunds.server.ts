@@ -15,7 +15,12 @@ import {
   videoWatchEvents,
   LessonProgressStatus,
   RefundStatus,
+  UserRole,
 } from "~/db/schema";
+import {
+  queueNotification,
+  toNotificationUser,
+} from "~/lib/notification-outbox.server";
 import { formatPrice } from "~/lib/utils";
 import {
   REFUND_COMPLETION_LIMIT,
@@ -351,9 +356,31 @@ export function getRefundOffer(
 export type Email = { to: string; subject: string; body: string };
 
 export type RaiseResult =
-  | { ok: true; refundRequestId: number; kind: PurchaseKind; email: Email }
+  | {
+      ok: true;
+      refundRequestId: number;
+      kind: PurchaseKind;
+      /** The buyer's Receipt, for the route to send. */
+      email: Email;
+      /** For the route to hand to sendInBackground after the commit. */
+      outboxRowIds: number[];
+    }
   | Failure;
 
+/** Platform Admins are the users with the admin role at that moment. */
+function listPlatformAdmins(db: Queryable) {
+  return db
+    .select()
+    .from(users)
+    .where(eq(users.role, UserRole.Admin))
+    .orderBy(asc(users.id))
+    .all();
+}
+
+/**
+ * Raises a Refund Request and, in the same transaction, queues Refund Request
+ * raised for every Platform Admin.
+ */
 export function raiseRefundRequest(
   db: Db,
   purchaseId: number,
@@ -361,50 +388,76 @@ export function raiseRefundRequest(
   reason: string,
   now: Date
 ): RaiseResult {
-  const check = checkRefundRequest(db, purchaseId, buyerId, now);
-  if (!check.ok) return check;
+  return db.transaction((tx): RaiseResult => {
+    const check = checkRefundRequest(tx, purchaseId, buyerId, now);
+    if (!check.ok) return check;
 
-  const { purchase } = check;
-  const buyer = db.select().from(users).where(eq(users.id, buyerId)).get();
-  const course = db
-    .select()
-    .from(courses)
-    .where(eq(courses.id, purchase.courseId))
-    .get();
+    const { purchase } = check;
+    const buyer = tx.select().from(users).where(eq(users.id, buyerId)).get();
+    const course = tx
+      .select()
+      .from(courses)
+      .where(eq(courses.id, purchase.courseId))
+      .get();
 
-  if (!buyer || !course) {
-    return { ok: false, status: 404, error: "Purchase not found." };
-  }
+    if (!buyer || !course) {
+      return { ok: false, status: 404, error: "Purchase not found." };
+    }
 
-  const refundRequest = db
-    .insert(refunds)
-    .values({
-      purchaseId: purchase.id,
-      status: RefundStatus.Open,
-      reason,
-      requestedAt: now.toISOString(),
-    })
-    .returning()
-    .get();
+    const refundRequest = tx
+      .insert(refunds)
+      .values({
+        purchaseId: purchase.id,
+        status: RefundStatus.Open,
+        reason,
+        requestedAt: now.toISOString(),
+      })
+      .returning()
+      .get();
 
+    const outboxRowIds = queueNotification(
+      tx,
+      "refund-request-raised",
+      listPlatformAdmins(tx).map(toNotificationUser),
+      toNotificationUser(buyer),
+      {
+        buyer_name: buyer.name,
+        course_title: course.title,
+        reason,
+        path: "/admin/refunds",
+      },
+      now
+    );
+
+    return {
+      ok: true,
+      refundRequestId: refundRequest.id,
+      kind: kindOf(getSeats(tx, purchase.id)),
+      email: buildRaisedReceipt(buyer, course.title, purchase),
+      outboxRowIds,
+    };
+  });
+}
+
+/** The buyer's Receipt for raising a Refund Request. Not a Notification. */
+function buildRaisedReceipt(
+  buyer: { name: string; email: string },
+  courseTitle: string,
+  purchase: Purchase
+): Email {
   return {
-    ok: true,
-    refundRequestId: refundRequest.id,
-    kind: kindOf(getSeats(db, purchase.id)),
-    email: {
-      to: buyer.email,
-      subject: `Refund requested — ${course.title}`,
-      body: [
-        `Hi ${buyer.name},`,
-        "",
-        `We have your refund request for "${course.title}".`,
-        `The refund is for ${formatPrice(purchase.amountPaid)}, the amount you paid.`,
-        "",
-        "Our team reviews every refund request by hand. You do not need to do anything else — we will email you again when it is done.",
-        "",
-        "— The Cadence team",
-      ].join("\n"),
-    },
+    to: buyer.email,
+    subject: `Refund requested — ${courseTitle}`,
+    body: [
+      `Hi ${buyer.name},`,
+      "",
+      `We have your refund request for "${courseTitle}".`,
+      `The refund is for ${formatPrice(purchase.amountPaid)}, the amount you paid.`,
+      "",
+      "Our team reviews every refund request by hand. You do not need to do anything else — we will email you again when it is done.",
+      "",
+      "— The Cadence team",
+    ].join("\n"),
   };
 }
 

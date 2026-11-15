@@ -14,6 +14,7 @@ import {
   listTeamLicences,
   raiseRefundRequest,
 } from "./refunds.server";
+import { listOutboxRows } from "./notification-outbox.server";
 
 type TestDb = ReturnType<typeof createTestDb>;
 
@@ -234,6 +235,88 @@ describe("raising a Refund Request", () => {
       ok: false,
       status: 403,
     });
+  });
+});
+
+describe("the Refund Request raised Notification", () => {
+  function addPlatformAdmin(name: string) {
+    return db
+      .insert(schema.users)
+      .values({
+        name,
+        email: `${name.split(" ")[0].toLowerCase()}@example.com`,
+        role: UserRole.Admin,
+      })
+      .returning()
+      .get();
+  }
+
+  it("is queued for every Platform Admin", () => {
+    const sam = addPlatformAdmin("Sam Admin");
+    const purchase = buyForSelf(base.user.id);
+
+    raise(purchase.id, base.user.id);
+
+    const [row] = listOutboxRows(db);
+    expect(row.workflow).toBe("refund-request-raised");
+    expect(row.recipients).toEqual([
+      { id: platformAdmin.knockId, name: "Pat Admin", email: "pat@example.com" },
+      { id: sam.knockId, name: "Sam Admin", email: "sam@example.com" },
+    ]);
+  });
+
+  it("names the buyer as the actor, by Knock id, name and email only", () => {
+    const purchase = buyForSelf(base.user.id);
+
+    raise(purchase.id, base.user.id);
+
+    const [row] = listOutboxRows(db);
+    expect(row.actor).toEqual({
+      id: base.user.knockId,
+      name: "Test User",
+      email: "test@example.com",
+    });
+  });
+
+  it("tells them who asked, for which course, why, and where to review it", () => {
+    const purchase = buyForSelf(base.user.id);
+
+    raise(purchase.id, base.user.id);
+
+    const [row] = listOutboxRows(db);
+    expect(row.data).toEqual({
+      buyer_name: "Test User",
+      course_title: "Test Course",
+      reason: "It was not what I expected.",
+      path: "/admin/refunds",
+    });
+  });
+
+  it("leaves out a Platform Admin raising one on their own Purchase", () => {
+    const sam = addPlatformAdmin("Sam Admin");
+    const purchase = buyForSelf(platformAdmin.id);
+
+    raise(purchase.id, platformAdmin.id);
+
+    const [row] = listOutboxRows(db);
+    expect(row.recipients.map((recipient) => recipient.id)).toEqual([
+      sam.knockId,
+    ]);
+  });
+
+  it("keeps neither the Refund Request nor the Notification if the transaction fails", () => {
+    // A course with no title breaks the workflow's schema, which throws
+    // after the Refund Request has been inserted.
+    db.update(schema.courses)
+      .set({ title: "" })
+      .where(eq(schema.courses.id, base.course.id))
+      .run();
+    const purchase = buyForSelf(base.user.id);
+
+    expect(() => raise(purchase.id, base.user.id)).toThrow();
+
+    expect(listRefundRequestsForBuyer(db, base.user.id)).toEqual([]);
+    expect(listOutboxRows(db)).toEqual([]);
   });
 });
 
