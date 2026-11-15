@@ -1,6 +1,6 @@
 import type { FeedItem, FeedStoreState } from "@knocklabs/client";
 import { z } from "zod";
-import { knockErrorStatus, type KnockConnection } from "~/lib/knock-browser";
+import { knockRefusal, type KnockConnection } from "~/lib/knock-browser";
 
 // ─── The Notification Feed ───
 // What the bell shows, worked out from Knock's feed items. Runs in the
@@ -134,8 +134,7 @@ export function createNotificationFeed(
   async function load() {
     const result = await connection.withFreshToken(
       () => feed.fetch(),
-      (res) =>
-        res?.status === "error" ? knockErrorStatus(res.data) : undefined
+      (res) => (res?.status === "error" ? knockRefusal(res.data) : undefined)
     );
     if (result) {
       status = result.status === "ok" ? "ready" : "error";
@@ -148,8 +147,8 @@ export function createNotificationFeed(
   async function mark(send: () => Promise<unknown>) {
     let refused: boolean;
     try {
-      const result = await connection.withFreshToken(send, knockErrorStatus);
-      refused = knockErrorStatus(result) !== undefined;
+      const result = await connection.withFreshToken(send, knockRefusal);
+      refused = knockRefusal(result) !== undefined;
     } catch {
       refused = true; // the SDK throws on a 5xx
     }

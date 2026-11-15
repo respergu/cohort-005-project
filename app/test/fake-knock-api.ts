@@ -3,8 +3,9 @@ import type { FeedItem } from "@knocklabs/client";
 // ─── A fake Knock API for the browser side ───
 // Stands in for `fetch`, so the real @knocklabs/client talks to it the way it
 // talks to api.knock.app. It also answers the app's own POST /api/knock-token.
-// It keeps the feed's state, so a re-fetch shows what Knock would hold after
-// a mark, not what the client guessed. Install it with
+// It keeps the feed's state and each user's preference set, so a re-fetch
+// shows what Knock would hold after a mark or a save, not what the client
+// guessed. Install it with
 // `vi.stubGlobal("fetch", api.fetch)` before connecting.
 
 export type RecordedRequest = {
@@ -38,6 +39,13 @@ export function fakeUserToken(sub: string, expiresAtSeconds: number, tag = "") {
   })}.signature`;
 }
 
+/** A user's saved categories, as Knock stores them. Null: the user exists but saved nothing. */
+type SavedCategories = Record<string, unknown> | null;
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
 function messageIds(body: unknown): Set<string> {
   if (
     typeof body !== "object" ||
@@ -54,9 +62,12 @@ function messageIds(body: unknown): Set<string> {
 
 export function fakeKnockApi() {
   const requests: RecordedRequest[] = [];
-  const rejectedTokens = new Set<string>();
+  const rejectedTokens = new Map<string, number>();
   let markRefusal: number | null = null;
   let entries: FeedEntry[] = [];
+  // Keyed by Knock id. A user missing here is one Knock has never seen.
+  const preferenceSets = new Map<string, SavedCategories>();
+  let preferenceFailure: { status: number; body: unknown } | null = null;
   let refreshResponse: { status: number; body: unknown } = {
     status: 401,
     body: "Select a user from the DevUI panel.",
@@ -116,13 +127,46 @@ export function fakeKnockApi() {
     if (url.pathname === "/api/knock-token" && method === "POST") {
       return json(refreshResponse.status, refreshResponse.body);
     }
-    if (userToken && rejectedTokens.has(userToken)) {
-      return json(401, {
+    const rejectedWith = userToken ? rejectedTokens.get(userToken) : undefined;
+    if (rejectedWith !== undefined) {
+      return json(rejectedWith, {
         code: "invalid_user_token",
         message: "The user token has expired",
-        status: 401,
+        status: rejectedWith,
         type: "authentication_error",
       });
+    }
+
+    const preferences = url.pathname.match(
+      /^\/v1\/users\/([^/]+)\/preferences\/default$/
+    );
+    if (preferences && preferenceFailure) {
+      return json(preferenceFailure.status, preferenceFailure.body);
+    }
+    if (preferences && method === "GET") {
+      const knockId = preferences[1];
+      if (!preferenceSets.has(knockId)) {
+        return json(404, {
+          code: "resource_missing",
+          message: "The resource you requested does not exist",
+          status: 404,
+          type: "api_error",
+        });
+      }
+      return json(200, preferenceSet(preferenceSets.get(knockId) ?? null));
+    }
+    if (preferences && method === "PUT") {
+      const knockId = preferences[1];
+      const written =
+        isRecord(body) && isRecord(body.categories) ? body.categories : {};
+      // A merge write keeps the categories it doesn't name. Knock doesn't say
+      // whether it merges inside a category too, so this fake doesn't: each
+      // category sent replaces the saved one. Anything else replaces the set.
+      const merge = isRecord(body) && body.__persistence_strategy__ === "merge";
+      const saved = merge ? (preferenceSets.get(knockId) ?? {}) : {};
+      const next = { ...saved, ...written };
+      preferenceSets.set(knockId, next);
+      return json(200, preferenceSet(next));
     }
 
     if (
@@ -180,6 +224,18 @@ export function fakeKnockApi() {
     return json(404, { errors: { detail: "404 Not Found" } });
   }
 
+  function preferenceSet(categories: SavedCategories) {
+    return {
+      __typename: "PreferenceSet",
+      id: "default",
+      categories,
+      workflows: null,
+      channel_types: null,
+      channels: null,
+      commercial_subscribed: null,
+    };
+  }
+
   function mark(entry: FeedEntry, status: "read" | "seen"): FeedEntry {
     return status === "read"
       ? {
@@ -205,9 +261,23 @@ export function fakeKnockApi() {
         ...e,
       }));
     },
-    /** Knock answers 401 to any request carrying this token. */
-    rejectToken(token: string) {
-      rejectedTokens.add(token);
+    /**
+     * Knock answers `invalid_user_token` to any request carrying this token:
+     * 401 by default, or the 400 #22 saw for a token it couldn't verify.
+     */
+    rejectToken(token: string, status: 400 | 401 = 401) {
+      rejectedTokens.set(token, status);
+    },
+    /**
+     * The user's saved preference categories, as if they'd saved them
+     * before. Null: Knock knows the user, but they've saved nothing.
+     */
+    savePreferences(knockId: string, categories: SavedCategories) {
+      preferenceSets.set(knockId, categories);
+    },
+    /** Knock answers every preference read and save with this. */
+    failPreferencesWith(status: number, body: unknown) {
+      preferenceFailure = { status, body };
     },
     /** Knock answers every read, seen or bulk mark with this status. */
     refuseMarksWith(status: number) {
