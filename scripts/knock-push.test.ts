@@ -217,15 +217,20 @@ describe("npm run knock:push", () => {
             body: JSON.parse(String(init?.body)),
           }))
       ).toEqual(
-        Object.entries(variables).map(([key, variable]) => ({
+        Object.entries(
+          variables as Record<
+            string,
+            { type: string; environment_values: { development: string } }
+          >
+        ).map(([key, variable]) => ({
           url: `${VARIABLE_URL}${key}`,
           method: "PUT",
           authorization: "Bearer knock_st_fake",
+          // Knock requires type on every upsert, and it can't change once set.
           body: {
+            type: variable.type,
             environment_values: {
-              development: (
-                variable as { environment_values: { development: string } }
-              ).environment_values.development,
+              development: variable.environment_values.development,
             },
           },
         }))

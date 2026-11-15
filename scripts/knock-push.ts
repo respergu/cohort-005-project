@@ -72,6 +72,10 @@ const VARIABLES_URL = "https://control.knock.app/v1/variables";
  * request leaves out unchanged, so Production's value and the default (which
  * Production falls back on) are never touched from a branch. Only the
  * merge-to-main job pushes the whole of knock/variables.json.
+ *
+ * Knock rejects an upsert without `type` ("can't be blank"), even for a
+ * variable that exists. Sending it changes nothing: a type can't change once
+ * the variable is created.
  */
 async function setDevelopmentVariables({
   root,
@@ -87,11 +91,13 @@ async function setDevelopmentVariables({
   const variables = z
     .record(
       z.object({
+        type: z.enum(["public", "secret"]),
         environment_values: z.object({ development: z.string().min(1) }),
       })
     )
     .parse(readJson(join(root, "knock/variables.json")));
   for (const [key, variable] of Object.entries(variables)) {
+    const { type } = variable;
     const development = variable.environment_values.development;
     const response = await fetch(
       `${VARIABLES_URL}/${encodeURIComponent(key)}`,
@@ -101,7 +107,7 @@ async function setDevelopmentVariables({
           Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ environment_values: { development } }),
+        body: JSON.stringify({ type, environment_values: { development } }),
       }
     );
     if (!response.ok) {
