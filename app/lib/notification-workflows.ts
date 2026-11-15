@@ -24,6 +24,19 @@ const everyTrigger = {
 };
 
 export const notificationWorkflows = {
+  /**
+   * To every Student enrolled on a Published course when one of its lessons
+   * gets its first video. Knock batches it per course, so `course_id` is the
+   * batch key, and `path` is the course page for every lesson in the batch.
+   */
+  "new-lesson": z
+    .object({
+      ...everyTrigger,
+      course_id: z.number().int().min(1),
+      lesson_title: z.string().min(1),
+    })
+    .strict(),
+
   /** To every Platform Admin when a buyer raises a Refund Request. */
   "refund-request-raised": z
     .object({

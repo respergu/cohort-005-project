@@ -1,11 +1,22 @@
-import { eq, sql } from "drizzle-orm";
+import { asc, eq, sql } from "drizzle-orm";
 import type { BetterSQLite3Database } from "drizzle-orm/better-sqlite3";
 import * as schema from "~/db/schema";
-import { lessons } from "~/db/schema";
+import {
+  CourseStatus,
+  courses,
+  enrollments,
+  lessons,
+  modules,
+  users,
+} from "~/db/schema";
+import {
+  queueNotification,
+  toNotificationUser,
+} from "~/lib/notification-outbox.server";
 
 // ─── Lessons ───
-// Creating and editing a lesson. Both run in one transaction, so that a
-// Notification about the lesson can be written alongside it (docs/adr/0014).
+// Creating and editing a lesson. Both run in one transaction, which also
+// queues New lesson when the lesson gets its first video (docs/adr/0014).
 //
 // Every function takes the database first, so tests can hand in an in-memory
 // one. Uses positional parameters (project convention).
@@ -20,6 +31,8 @@ export type LessonWrite = {
   lesson: Lesson;
   /** The lesson's video went from empty to set. */
   videoAdded: boolean;
+  /** For the route to hand to sendInBackground after the commit. */
+  outboxRowIds: number[];
 };
 
 export function createLesson(
@@ -29,7 +42,9 @@ export function createLesson(
   content: string | null,
   videoUrl: string | null,
   position: number | null,
-  durationMinutes: number | null
+  durationMinutes: number | null,
+  actorId: number,
+  now: Date
 ): LessonWrite {
   return db.transaction((tx): LessonWrite => {
     const lesson = tx
@@ -45,7 +60,12 @@ export function createLesson(
       .returning()
       .get();
 
-    return { lesson, videoAdded: hasVideo(lesson) };
+    const videoAdded = hasVideo(lesson);
+    const outboxRowIds = videoAdded
+      ? queueNewLesson(tx, lesson, actorId, now)
+      : [];
+
+    return { lesson, videoAdded, outboxRowIds };
   });
 }
 
@@ -60,7 +80,9 @@ export type LessonChanges = Partial<
 export function updateLesson(
   db: Db,
   lessonId: number,
-  changes: LessonChanges
+  changes: LessonChanges,
+  actorId: number,
+  now: Date
 ): LessonWrite | null {
   return db.transaction((tx): LessonWrite | null => {
     const before = tx
@@ -71,7 +93,7 @@ export function updateLesson(
 
     if (!before) return null;
     if (Object.values(changes).every((value) => value === undefined)) {
-      return { lesson: before, videoAdded: false };
+      return { lesson: before, videoAdded: false, outboxRowIds: [] };
     }
 
     const lesson = tx
@@ -81,8 +103,60 @@ export function updateLesson(
       .returning()
       .get();
 
-    return { lesson, videoAdded: !hasVideo(before) && hasVideo(lesson) };
+    const videoAdded = !hasVideo(before) && hasVideo(lesson);
+    const outboxRowIds = videoAdded
+      ? queueNewLesson(tx, lesson, actorId, now)
+      : [];
+
+    return { lesson, videoAdded, outboxRowIds };
   });
+}
+
+/**
+ * Queues New lesson for everyone with an Enrollment on the lesson's course,
+ * if it's Published. A Draft course never fires, not even once it's published.
+ */
+function queueNewLesson(
+  tx: Tx,
+  lesson: Lesson,
+  actorId: number,
+  now: Date
+): number[] {
+  const course = tx
+    .select({
+      id: courses.id,
+      title: courses.title,
+      slug: courses.slug,
+      status: courses.status,
+    })
+    .from(modules)
+    .innerJoin(courses, eq(courses.id, modules.courseId))
+    .where(eq(modules.id, lesson.moduleId))
+    .get();
+  if (course?.status !== CourseStatus.Published) return [];
+
+  const enrolled = tx
+    .select({ knockId: users.knockId, name: users.name, email: users.email })
+    .from(enrollments)
+    .innerJoin(users, eq(users.id, enrollments.userId))
+    .where(eq(enrollments.courseId, course.id))
+    .orderBy(asc(users.id))
+    .all();
+  const actor = tx.select().from(users).where(eq(users.id, actorId)).get();
+
+  return queueNotification(
+    tx,
+    "new-lesson",
+    enrolled.map(toNotificationUser),
+    actor ? toNotificationUser(actor) : null,
+    {
+      course_title: course.title,
+      path: `/courses/${course.slug}`,
+      course_id: course.id,
+      lesson_title: lesson.title,
+    },
+    now
+  );
 }
 
 function nextPosition(db: Queryable, moduleId: number): number {
