@@ -1,6 +1,6 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import Knock, { type ClientOptions } from "@knocklabs/node";
+import Knock, { APIError, type ClientOptions } from "@knocklabs/node";
 import type { NotificationData, NotificationUser } from "~/db/schema";
 
 // ─── Notification transports ───
@@ -50,6 +50,34 @@ export function knockTransport(
       );
     },
   };
+}
+
+/**
+ * Whether a failed send might pass if it's tried again: a 408 or 429, a 5xx,
+ * a timeout or a network failure. Any other 4xx means Knock rejected the
+ * trigger outright. A throw that isn't a Knock response, such as a folder
+ * write that failed, counts as one that might pass.
+ */
+export function mightPassOnRetry(error: unknown): boolean {
+  // Timeouts and network failures are APIErrors without a status.
+  if (!(error instanceof APIError) || typeof error.status !== "number") {
+    return true;
+  }
+  const { status } = error;
+  return status === 408 || status === 429 || status < 400 || status >= 500;
+}
+
+/**
+ * A failed send for a log line: Knock's status and response body, or why
+ * there was no response.
+ */
+export function describeSendFailure(error: unknown): string {
+  if (error instanceof APIError && typeof error.status === "number") {
+    return `Knock answered ${error.status} ${JSON.stringify(error.error)}`;
+  }
+  return error instanceof Error
+    ? `no response from Knock: ${error.message}`
+    : `it threw ${String(error)}`;
 }
 
 /**

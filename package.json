@@ -17,6 +17,7 @@
     "test:watch": "vitest",
     "db:generate": "drizzle-kit generate",
     "db:seed": "tsx scripts/seed.ts",
+    "notifications:resend": "tsx --env-file-if-exists=.env scripts/resend-notification.ts",
     "seed-wayfinder-issues": "bash scripts/seed-wayfinder-issues.sh",
     "knock:setup": "bash scripts/knock-setup.sh",
     "knock:generate": "tsx scripts/knock-content.ts",

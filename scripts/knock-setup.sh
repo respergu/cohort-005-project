@@ -204,7 +204,7 @@ finish() {
 
 # The channel keys the knock/ workflows send through. Change one only together
 # with every matching channel_key in knock/workflows/*/workflow.json.
-IN_APP_CHANNEL_KEY="knock-in-app" # the in-app feed channel Knock creates
+IN_APP_CHANNEL_KEY="in-app" # the in-app feed channel Knock creates (confirmed with knock channel list)
 EMAIL_CHANNEL_KEY="postmark"      # the email channel stage 3 creates
 
 RESPONSE_FILTER='{"actor": {"only": ["id", "name"]}}'

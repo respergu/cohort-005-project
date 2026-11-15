@@ -1,0 +1,1 @@
+ALTER TABLE `notification_outbox` ADD `next_attempt_at` text;
