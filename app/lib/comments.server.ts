@@ -108,13 +108,13 @@ export function createComment(
       .get();
 
     // Notifications go in the same transaction, so they commit with the
-    // Comment or not at all. The poster is the actor, never a recipient.
-    const poster = tx.select().from(users).where(eq(users.id, userId)).get();
-    const outboxRowIds = !poster
+    // Comment or not at all. The author is the actor, never a recipient.
+    const author = tx.select().from(users).where(eq(users.id, userId)).get();
+    const outboxRowIds = !author
       ? []
       : question === null
-        ? queueNewQuestion(tx, lesson, poster, trimmed, now)
-        : queueReply(tx, lesson, question, poster, trimmed, now);
+        ? queueNewQuestion(tx, lesson, author, trimmed, now)
+        : queueReply(tx, lesson, question, author, trimmed, now);
 
     return { ok: true, comment, outboxRowIds };
   });
