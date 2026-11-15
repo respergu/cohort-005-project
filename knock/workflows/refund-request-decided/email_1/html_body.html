@@ -1,0 +1,11 @@
+{% if data.decision == "approved" %}
+<p style="margin: 0 0 16px;">We have approved your refund request for <strong>{{ data.course_title | escape }}</strong>. {{ data.amount_paid | escape }}, the full amount you paid, is on its way back to you.</p>
+{% if data.note %}
+<p style="margin: 0 0 16px; white-space: pre-line;">{{ data.note | escape }}</p>
+{% endif %}
+{% else %}
+<p style="margin: 0 0 16px;">We have looked at your refund request for <strong>{{ data.course_title | escape }}</strong> and decided not to refund it.</p>
+<p style="margin: 0 0 16px; white-space: pre-line;">{{ data.note | escape }}</p>
+<p style="margin: 0 0 16px;">You still have everything you bought. If something changes, you can raise a new refund request.</p>
+{% endif %}
+<p style="margin: 0;"><a href="{{ vars.app_url }}{{ data.path | escape }}" style="color: #111111; text-decoration: underline;">See your Refund Requests</a></p>

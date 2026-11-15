@@ -106,6 +106,10 @@ describe("the merge-to-main Action (knock-ci.ts sync)", () => {
   );
 
   it("fills the category catalog, pushes variables and default preferences to both environments, then pushes and commits to Development, then promotes", async () => {
+    // The catalog also takes each workflow's categories. Leave the repo's
+    // workflows out, so the categories are only the two named below.
+    rmSync(join(root, "knock/workflows"), { recursive: true });
+    mkdirSync(join(root, "knock/workflows"));
     writeFileSync(
       join(root, "knock/preferences/default.json"),
       JSON.stringify({

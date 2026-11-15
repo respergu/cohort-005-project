@@ -1,0 +1,67 @@
+{
+  "name": "Refund Request decided",
+  "description": "To the buyer when a Platform Admin approves or declines their Refund Request. Locked, because it's about the buyer's own money. Triggered by approveRefundRequest and declineRefundRequest.",
+  "categories": [
+    "refunds"
+  ],
+  "settings": {
+    "override_preferences": true
+  },
+  "steps": [
+    {
+      "ref": "in_app_feed_1",
+      "type": "channel",
+      "channel_key": "in-app",
+      "template": {
+        "markdown_body@": "in_app_feed_1/markdown_body.md",
+        "action_url": "{{ vars.app_url }}{{ data.path | escape }}"
+      }
+    },
+    {
+      "ref": "email_1",
+      "type": "channel",
+      "channel_key": "postmark",
+      "template": {
+        "settings": {
+          "layout_key": "cadence"
+        },
+        "subject": "Refund {{ data.decision | escape }} — {{ data.course_title | escape }}",
+        "html_body@": "email_1/html_body.html"
+      }
+    }
+  ],
+  "trigger_data_json_schema": {
+    "type": "object",
+    "properties": {
+      "course_title": {
+        "type": "string",
+        "minLength": 1
+      },
+      "path": {
+        "type": "string",
+        "pattern": "^/"
+      },
+      "decision": {
+        "type": "string",
+        "enum": [
+          "approved",
+          "declined"
+        ]
+      },
+      "note": {
+        "type": "string",
+        "minLength": 1
+      },
+      "amount_paid": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "required": [
+      "course_title",
+      "path",
+      "decision",
+      "amount_paid"
+    ]
+  }
+}

@@ -30,6 +30,7 @@ import { data, isRouteErrorResponse } from "react-router";
 import { z } from "zod";
 import { parseFormData, parseParams } from "~/lib/validation";
 import { updateLesson } from "~/lib/lessons.server";
+import { sendInBackground } from "~/lib/notification-sender.server";
 
 const instructorLessonParamsSchema = z.object({
   courseId: z.coerce.number().int(),
@@ -198,12 +199,21 @@ export async function action({ params, request }: Route.ActionArgs) {
     }
 
     // A blank video, duration or repo leaves that field as it was.
-    updateLesson(db, lessonId, {
-      content,
-      videoUrl: videoUrl || undefined,
-      durationMinutes: durationMinutes ?? undefined,
-      githubRepoUrl: githubRepoUrl || undefined,
-    });
+    const result = updateLesson(
+      db,
+      lessonId,
+      {
+        content,
+        videoUrl: videoUrl || undefined,
+        durationMinutes: durationMinutes ?? undefined,
+        githubRepoUrl: githubRepoUrl || undefined,
+      },
+      currentUserId,
+      new Date()
+    );
+    // The lesson and any New lesson rows have committed. Sending them doesn't
+    // hold up the response, and can't fail it.
+    sendInBackground(result?.outboxRowIds ?? []);
     return { success: true };
   }
 

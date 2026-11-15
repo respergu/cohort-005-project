@@ -21,6 +21,7 @@ import {
   queueNotification,
   toNotificationUser,
 } from "~/lib/notification-outbox.server";
+import type { WorkflowData } from "~/lib/notification-workflows";
 import { formatPrice } from "~/lib/utils";
 import {
   REFUND_COMPLETION_LIMIT,
@@ -621,7 +622,15 @@ export function listTeamLicences(db: Queryable, buyerId: number, now: Date) {
 
 // ─── Deciding a Refund Request ───
 
-export type DecisionResult = { ok: true; email: Email } | Failure;
+// The buyer hears about the decision through Refund Request decided, which
+// Knock emails. Cadence no longer builds a decision email of its own.
+export type DecisionResult =
+  | {
+      ok: true;
+      /** For the route to hand to sendInBackground after the commit. */
+      outboxRowIds: number[];
+    }
+  | Failure;
 
 function findOpenRefundRequest(
   tx: Queryable,
@@ -677,6 +686,7 @@ export function approveRefundRequest(
 
     const { purchase } = found;
     const seats = getSeats(tx, purchase.id);
+    let outcome: ApprovedOutcome;
 
     if (kindOf(seats) === "team_licence") {
       if (seats.some(isClaimed)) {
@@ -688,12 +698,17 @@ export function approveRefundRequest(
         };
       }
 
-      tx.update(coupons)
+      const cancelled = tx
+        .update(coupons)
         .set({ refundedAt: now.toISOString() })
         .where(
           and(eq(coupons.purchaseId, purchase.id), isNull(coupons.redeemedAt))
         )
         .run();
+      outcome = {
+        outcome: "seats_cancelled",
+        seats_cancelled: cancelled.changes,
+      };
     } else {
       const claimedSeat = tx
         .select({ id: coupons.id })
@@ -707,7 +722,9 @@ export function approveRefundRequest(
         )
         .get();
 
-      if (!claimedSeat) {
+      if (claimedSeat) {
+        outcome = { outcome: "enrollment_kept" };
+      } else {
         tx.delete(enrollments)
           .where(
             and(
@@ -716,6 +733,7 @@ export function approveRefundRequest(
             )
           )
           .run();
+        outcome = { outcome: "enrollment_lost" };
       }
     }
 
@@ -730,11 +748,90 @@ export function approveRefundRequest(
       .where(eq(refunds.id, refundRequestId))
       .run();
 
-    return {
-      ok: true,
-      email: buildDecisionEmail(tx, purchase, RefundStatus.Approved, note),
-    };
+    const outboxRowIds = queueDecisionNotifications(
+      tx,
+      purchase,
+      platformAdminId,
+      { decision: "approved", note, outcome },
+      now
+    );
+
+    return { ok: true, outboxRowIds };
   });
+}
+
+/** What approving took away, for the course's Instructor. */
+type ApprovedOutcome = Pick<
+  WorkflowData<"refund-request-approved">,
+  "outcome" | "seats_cancelled"
+>;
+
+type Decision =
+  | { decision: "approved"; note: string | null; outcome: ApprovedOutcome }
+  | { decision: "declined"; note: string };
+
+/**
+ * Queues a decision's Notifications: Refund Request decided for the buyer
+ * and, for an approval, Refund Request approved for the course's Instructor.
+ * The deciding Platform Admin is the actor, so never a recipient.
+ */
+function queueDecisionNotifications(
+  tx: Tx,
+  purchase: Purchase,
+  platformAdminId: number,
+  decision: Decision,
+  now: Date
+): number[] {
+  const buyer = getUser(tx, purchase.userId);
+  const platformAdmin = getUser(tx, platformAdminId);
+  const course = tx
+    .select()
+    .from(courses)
+    .where(eq(courses.id, purchase.courseId))
+    .get();
+  const instructor = course && getUser(tx, course.instructorId);
+  // Foreign keys make these impossible. Throwing rolls the decision back.
+  if (!buyer || !platformAdmin || !course || !instructor) {
+    throw new Error(
+      `Refund Request on Purchase ${purchase.id} is missing its buyer, decider, course or Instructor.`
+    );
+  }
+  const actor = toNotificationUser(platformAdmin);
+
+  const decidedRowIds = queueNotification(
+    tx,
+    "refund-request-decided",
+    [toNotificationUser(buyer)],
+    actor,
+    {
+      decision: decision.decision,
+      ...(decision.note ? { note: decision.note } : {}),
+      course_title: course.title,
+      amount_paid: formatPrice(purchase.amountPaid),
+      path: "/settings#refund-requests",
+    },
+    now
+  );
+  if (decision.decision === "declined") return decidedRowIds;
+
+  const approvedRowIds = queueNotification(
+    tx,
+    "refund-request-approved",
+    [toNotificationUser(instructor)],
+    actor,
+    {
+      buyer_name: buyer.name,
+      ...decision.outcome,
+      course_title: course.title,
+      path: `/instructor/${course.id}/students`,
+    },
+    now
+  );
+  return [...decidedRowIds, ...approvedRowIds];
+}
+
+function getUser(db: Queryable, userId: number) {
+  return db.select().from(users).where(eq(users.id, userId)).get();
 }
 
 /**
@@ -773,62 +870,14 @@ export function declineRefundRequest(
       .where(eq(refunds.id, refundRequestId))
       .run();
 
-    return {
-      ok: true,
-      email: buildDecisionEmail(
-        tx,
-        found.purchase,
-        RefundStatus.Declined,
-        trimmedNote
-      ),
-    };
+    const outboxRowIds = queueDecisionNotifications(
+      tx,
+      found.purchase,
+      platformAdminId,
+      { decision: "declined", note: trimmedNote },
+      now
+    );
+
+    return { ok: true, outboxRowIds };
   });
-}
-
-/** The email the buyer gets once their Refund Request is decided. */
-function buildDecisionEmail(
-  db: Queryable,
-  purchase: Purchase,
-  decision: RefundStatus.Approved | RefundStatus.Declined,
-  note: string | null
-): Email {
-  const buyer = db
-    .select()
-    .from(users)
-    .where(eq(users.id, purchase.userId))
-    .get();
-  const course = db
-    .select()
-    .from(courses)
-    .where(eq(courses.id, purchase.courseId))
-    .get();
-
-  const courseTitle = course?.title ?? "your course";
-  const noteLines = note ? ["", note] : [];
-
-  const middle =
-    decision === RefundStatus.Approved
-      ? [
-          `We have approved your refund request for "${courseTitle}".`,
-          `${formatPrice(purchase.amountPaid)}, the full amount you paid, is on its way back to you.`,
-          ...noteLines,
-        ]
-      : [
-          `We have looked at your refund request for "${courseTitle}" and decided not to refund it.`,
-          ...noteLines,
-          "",
-          "You still have everything you bought. If something changes, you can raise a new refund request.",
-        ];
-
-  return {
-    to: buyer?.email ?? "",
-    subject: `Refund ${decision} — ${courseTitle}`,
-    body: [
-      `Hi ${buyer?.name ?? "there"},`,
-      "",
-      ...middle,
-      "",
-      "— The Cadence team",
-    ].join("\n"),
-  };
 }

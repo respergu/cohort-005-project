@@ -1,0 +1,2 @@
+<p style="margin: 0 0 16px;">{% if total_actors > 1 %}<strong>{{ total_actors }} new Students</strong> enrolled{% else %}<strong>{{ actors[0].name | escape }}</strong> enrolled{% endif %} on <strong>{{ data.course_title | escape }}</strong>.</p>
+<p style="margin: 0;"><a href="{{ vars.app_url }}{{ data.path | escape }}" style="color: #111111; text-decoration: underline;">See your Students</a></p>
