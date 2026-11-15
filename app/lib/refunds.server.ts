@@ -21,6 +21,7 @@ import {
   toNotificationUser,
 } from "~/lib/notification-outbox.server";
 import type { WorkflowData } from "~/lib/notification-workflows";
+import { getUser } from "~/lib/users.server";
 import { formatPrice } from "~/lib/utils";
 import {
   REFUND_COMPLETION_LIMIT,
@@ -823,10 +824,6 @@ function queueDecisionNotifications(
     now
   );
   return [...decidedRowIds, ...approvedRowIds];
-}
-
-function getUser(db: Queryable, userId: number) {
-  return db.select().from(users).where(eq(users.id, userId)).get();
 }
 
 /**

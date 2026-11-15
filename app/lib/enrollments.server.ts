@@ -6,6 +6,7 @@ import {
   toNotificationUser,
 } from "~/lib/notification-outbox.server";
 import { getSeatAvailability } from "~/lib/refunds.server";
+import { getUser } from "~/lib/users.server";
 
 // ─── Enrollments ───
 // The two ways a Student gets an Enrollment: claiming a Seat, and buying the
@@ -50,10 +51,6 @@ function countSeatsLeft(tx: Tx, teamLicenceId: number): number {
     )
     .get();
   return row?.count ?? 0;
-}
-
-function getUser(tx: Tx, userId: number) {
-  return tx.select().from(users).where(eq(users.id, userId)).get();
 }
 
 function getCourse(tx: Tx, courseId: number) {

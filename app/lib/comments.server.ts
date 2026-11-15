@@ -13,6 +13,7 @@ import {
   queueNotification,
   toNotificationUser,
 } from "~/lib/notification-outbox.server";
+import { getUser } from "~/lib/users.server";
 
 // ─── Comments ───
 // Posting a Comment on a lesson: a top-level Comment or a Reply. The lesson
@@ -105,7 +106,7 @@ export function createComment(
 
     // Notifications go in the same transaction, so they commit with the
     // Comment or not at all. The author is the actor, never a recipient.
-    const author = tx.select().from(users).where(eq(users.id, userId)).get();
+    const author = getUser(tx, userId);
     const outboxRowIds = !author
       ? []
       : question === null
@@ -188,11 +189,7 @@ function queueNewQuestion(
   body: string,
   now: Date
 ): number[] {
-  const instructor = tx
-    .select()
-    .from(users)
-    .where(eq(users.id, lesson.course.instructorId))
-    .get();
+  const instructor = getUser(tx, lesson.course.instructorId);
   if (!instructor) return [];
 
   return queueNotification(

@@ -12,6 +12,7 @@ import {
   queueNotification,
   toNotificationUser,
 } from "~/lib/notification-outbox.server";
+import { getUser } from "~/lib/users.server";
 
 // ─── Lessons ───
 // Creating and editing a lesson. Both run in one transaction, which also
@@ -137,7 +138,7 @@ function queueNewLesson(
     .where(eq(enrollments.courseId, course.id))
     .orderBy(asc(users.id))
     .all();
-  const actor = tx.select().from(users).where(eq(users.id, actorId)).get();
+  const actor = getUser(tx, actorId);
 
   return queueNotification(
     tx,
