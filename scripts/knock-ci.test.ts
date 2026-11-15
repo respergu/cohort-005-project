@@ -6,7 +6,6 @@ import {
   existsSync,
   mkdirSync,
   mkdtempSync,
-  readdirSync,
   readFileSync,
   rmSync,
   writeFileSync,
@@ -107,13 +106,10 @@ describe("the merge-to-main Action (knock-ci.ts sync)", () => {
   );
 
   it("fills the category catalog, pushes variables and default preferences to both environments, then pushes and commits to Development, then promotes", async () => {
-    // Only the worked example's workflow, so the categories expected below
-    // don't change each time a workflow is added to knock/.
-    const workflowsDir = join(root, "knock/workflows");
-    for (const key of readdirSync(workflowsDir)) {
-      if (key === "refund-request-raised") continue;
-      rmSync(join(workflowsDir, key), { recursive: true });
-    }
+    // The catalog also takes each workflow's categories. Leave the repo's
+    // workflows out, so the categories are only the two named below.
+    rmSync(join(root, "knock/workflows"), { recursive: true });
+    mkdirSync(join(root, "knock/workflows"));
     writeFileSync(
       join(root, "knock/preferences/default.json"),
       JSON.stringify({

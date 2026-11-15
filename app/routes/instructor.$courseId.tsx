@@ -59,6 +59,7 @@ import { data, isRouteErrorResponse } from "react-router";
 import { z } from "zod";
 import { parseFormData, parseParams } from "~/lib/validation";
 import { createLesson, updateLesson } from "~/lib/lessons.server";
+import { sendInBackground } from "~/lib/notification-sender.server";
 
 function getUserById(id: number) {
   return db.select().from(users).where(eq(users.id, id)).get();
@@ -721,7 +722,18 @@ export async function action({ params, request }: Route.ActionArgs) {
         { status: 404 }
       );
     }
-    createLesson(db, moduleId, title, null, null, null, null);
+    const result = createLesson(
+      db,
+      moduleId,
+      title,
+      null,
+      null,
+      null,
+      null,
+      currentUserId,
+      new Date()
+    );
+    sendInBackground(result.outboxRowIds);
     return { success: true, field: "lesson" };
   }
 
@@ -738,7 +750,14 @@ export async function action({ params, request }: Route.ActionArgs) {
         { status: 404 }
       );
     }
-    updateLesson(db, lessonId, { title });
+    const result = updateLesson(
+      db,
+      lessonId,
+      { title },
+      currentUserId,
+      new Date()
+    );
+    sendInBackground(result?.outboxRowIds ?? []);
     return { success: true, field: "lesson" };
   }
 
