@@ -1,13 +1,22 @@
 import { mkdtempSync, readdirSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createTestDb } from "~/test/setup";
-import { fakeNotificationTransport } from "~/test/fake-notification-transport";
+import {
+  fakeNotificationTransport,
+  type FakeNotificationTransport,
+} from "~/test/fake-notification-transport";
 import type { NotificationUser } from "~/db/schema";
 import { listOutboxRows, queueNotification } from "./notification-outbox.server";
-import { createNotificationSender } from "./notification-sender.server";
-import { folderTransport } from "./notification-transports.server";
+import {
+  createNotificationSender,
+  sendInBackground,
+} from "./notification-sender.server";
+import {
+  folderTransport,
+  type NotificationTransport,
+} from "./notification-transports.server";
 
 const NOW = new Date(2026, 9, 6, 12, 0, 0);
 
@@ -171,6 +180,94 @@ describe("the notification sender", () => {
     expect(transport.attempts).toHaveLength(1);
     expect(listOutboxRows(db)).toEqual([]);
   });
+});
+
+// #45 and #48: an action that writes an outbox row succeeds even when every
+// send fails. The route hands its rows to sendInBackground after the commit.
+describe("sending in the background, as a route does", () => {
+  const unhandledRejections: unknown[] = [];
+  const recordUnhandledRejection = (reason: unknown) => {
+    unhandledRejections.push(reason);
+  };
+  beforeEach(() => {
+    unhandledRejections.length = 0;
+    process.on("unhandledRejection", recordUnhandledRejection);
+  });
+  afterEach(() => {
+    process.off("unhandledRejection", recordUnhandledRejection);
+  });
+
+  function failingFake(fail: (transport: FakeNotificationTransport) => void) {
+    return () => {
+      const transport = fakeNotificationTransport();
+      fail(transport);
+      return transport;
+    };
+  }
+
+  const throwsSynchronously: NotificationTransport = {
+    send() {
+      throw new Error("The transport blew up before it could send.");
+    },
+  };
+
+  it.each<{
+    failure: string;
+    transport: () => NotificationTransport;
+    status: "waiting" | "parked";
+  }>([
+    {
+      failure: "a 5xx",
+      transport: failingFake((t) => t.respondWith(503)),
+      status: "waiting",
+    },
+    {
+      failure: "a 4xx",
+      transport: failingFake((t) => t.respondWith(400)),
+      status: "parked",
+    },
+    {
+      failure: "a timeout",
+      transport: failingFake((t) => t.timeOut()),
+      status: "waiting",
+    },
+    {
+      failure: "a lost connection",
+      transport: failingFake((t) => t.loseConnection()),
+      status: "waiting",
+    },
+    {
+      failure: "a synchronous throw",
+      transport: () => throwsSynchronously,
+      status: "waiting",
+    },
+  ])(
+    "never throws or rejects when the send fails with $failure, and leaves the row $status",
+    async ({ transport, status }) => {
+      const db = createTestDb();
+      // sendInBackground sends with the real clock, so the row is written
+      // with it too, or it would already be 24 hours old.
+      const [rowId] = queueNotification(
+        db,
+        "refund-request-raised",
+        [platformAdmin],
+        buyer,
+        DATA,
+        new Date()
+      );
+      const sender = createNotificationSender(db, transport(), quietLog);
+
+      expect(() => sendInBackground([rowId], sender)).not.toThrow();
+
+      await vi.waitFor(() =>
+        expect(listOutboxRows(db)).toMatchObject([
+          { id: rowId, status, attempts: 1 },
+        ])
+      );
+      await new Promise((resolve) => setImmediate(resolve));
+      expect(unhandledRejections).toEqual([]);
+    }
+  );
 });
 
 describe("retrying a send that might pass", () => {

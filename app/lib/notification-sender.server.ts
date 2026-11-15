@@ -290,16 +290,21 @@ export function startNotificationSender(
  * For routes, after the domain function's transaction has committed: starts
  * sending these outbox rows without waiting for them. Never throws, so the
  * action succeeds whatever happens to the send; the sweep retries failures.
+ * Routes leave out `sender` to use the server's; tests pass their own.
  */
-export function sendInBackground(rowIds: number[]): void {
+export function sendInBackground(
+  rowIds: number[],
+  sender?: NotificationSender
+): void {
   if (rowIds.length === 0) return;
   // Inside the promise chain, so even a sender that can't start only logs.
   Promise.resolve()
     .then(() => {
-      const sender =
+      const chosen =
+        sender ??
         running.__cadenceNotificationSender?.sender ??
         startNotificationSender();
-      return sender.send(rowIds, new Date());
+      return chosen.send(rowIds, new Date());
     })
     .catch((error) => {
       console.error(`Sending outbox rows ${rowIds.join(", ")} failed.`, error);
