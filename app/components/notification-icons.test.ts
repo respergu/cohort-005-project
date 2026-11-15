@@ -5,8 +5,13 @@ import {
   pickNotificationIcon,
   type NotificationIcon,
 } from "./notification-icons";
+import { CirclePlay } from "lucide-react";
 
 describe("notificationIconFor", () => {
+  it("shows a play button for New lesson", () => {
+    expect(notificationIconFor("new-lesson", {}).Icon).toBe(CirclePlay);
+  });
+
   it("shows a receipt for Refund Request raised", () => {
     expect(notificationIconFor("refund-request-raised", {}).Icon).toBe(Receipt);
   });

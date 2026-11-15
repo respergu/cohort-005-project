@@ -1,5 +1,6 @@
 import { Bell, Receipt, type LucideIcon } from "lucide-react";
 import type { WorkflowKey } from "~/lib/notification-workflows";
+import { CirclePlay } from "lucide-react";
 
 // ─── Notification Feed icons ───
 // Each row in the bell shows an icon for its kind of Notification, picked
@@ -23,6 +24,10 @@ type IconRule =
   NotificationIcon | ((data: NotificationItemData) => NotificationIcon);
 
 export const notificationIcons = {
+  "new-lesson": {
+    Icon: CirclePlay,
+    tone: "bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300",
+  },
   "refund-request-raised": {
     Icon: Receipt,
     tone: "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300",
