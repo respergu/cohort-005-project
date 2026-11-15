@@ -5,6 +5,7 @@ import {
   existsSync,
   mkdirSync,
   mkdtempSync,
+  readdirSync,
   readFileSync,
   rmSync,
   writeFileSync,
@@ -30,8 +31,12 @@ let workdir: string;
 let root: string;
 let log: string;
 let fakeKnock: string;
-let requests: { url: string; init: RequestInit | undefined }[];
-let knockResponse: Response;
+let requests: {
+  url: string;
+  init: RequestInit | undefined;
+  cliHadRun: boolean;
+}[];
+let respond: (url: string) => Response;
 
 beforeEach(() => {
   workdir = mkdtempSync(join(tmpdir(), "knock-push-"));
@@ -44,7 +49,7 @@ beforeEach(() => {
   writeFileSync(fakeKnock, FAKE_KNOCK);
   chmodSync(fakeKnock, 0o755);
   requests = [];
-  knockResponse = new Response("{}", { status: 200 });
+  respond = () => new Response("{}", { status: 200 });
 });
 
 afterEach(() => {
@@ -52,9 +57,33 @@ afterEach(() => {
 });
 
 const fakeFetch: typeof fetch = async (input, init) => {
-  requests.push({ url: String(input), init });
-  return knockResponse;
+  const url = String(input);
+  requests.push({ url, init, cliHadRun: existsSync(join(log, "args")) });
+  return respond(url);
 };
+
+const DEFAULTS_URL =
+  "https://control.knock.app/v1/environments/development/defaults";
+const CATEGORY_URL = "https://control.knock.app/v1/preference_categories/";
+const VARIABLE_URL = "https://control.knock.app/v1/variables/";
+
+/** Every category knock/ names: the default preference set's and each workflow's. */
+function categoriesInKnockDir() {
+  const names = new Set(
+    Object.keys(
+      JSON.parse(
+        readFileSync(join(root, "knock/preferences/default.json"), "utf8")
+      ).preference_set.categories
+    )
+  );
+  for (const key of readdirSync(join(root, "knock/workflows"))) {
+    const workflow = JSON.parse(
+      readFileSync(join(root, "knock/workflows", key, "workflow.json"), "utf8")
+    );
+    for (const name of workflow.categories ?? []) names.add(name);
+  }
+  return [...names].sort();
+}
 
 function push(env: NodeJS.ProcessEnv) {
   return knockPush({
@@ -136,19 +165,106 @@ describe("npm run knock:push", () => {
       expect(logged("workflow.json")).toContain('"trigger_data_json_schema"');
     });
 
+    it("adds every category knock/ names to Knock's preference category catalog, before the CLI pushes", async () => {
+      await push(env);
+
+      const categoryRequests = requests.filter(({ url }) =>
+        url.startsWith(CATEGORY_URL)
+      );
+      expect(
+        categoryRequests.map(({ url, init, cliHadRun }) => ({
+          url,
+          method: init?.method,
+          authorization: new Headers(init?.headers).get("authorization"),
+          cliHadRun,
+        }))
+      ).toEqual(
+        categoriesInKnockDir().map((name) => ({
+          url: `${CATEGORY_URL}${name}`,
+          method: "PUT",
+          authorization: "Bearer knock_st_fake",
+          cliHadRun: false,
+        }))
+      );
+      expect(categoriesInKnockDir()).toContain("refund-request-raised");
+    });
+
+    it("stops before the CLI when Knock refuses a category, with Knock's reason", async () => {
+      respond = (url) =>
+        url.startsWith(CATEGORY_URL)
+          ? new Response('{"message":"bad name"}', { status: 422 })
+          : new Response("{}", { status: 200 });
+
+      await expect(push(env)).rejects.toThrow(/422.*bad name/);
+
+      expect(logged("args")).toBeUndefined();
+    });
+
+    it("sets only Development's value of each variable in knock/variables.json, leaving Production's and the default alone", async () => {
+      const variables = JSON.parse(
+        readFileSync(join(root, "knock/variables.json"), "utf8")
+      );
+
+      await push(env);
+
+      expect(
+        requests
+          .filter(({ url }) => url.startsWith(VARIABLE_URL))
+          .map(({ url, init }) => ({
+            url,
+            method: init?.method,
+            authorization: new Headers(init?.headers).get("authorization"),
+            body: JSON.parse(String(init?.body)),
+          }))
+      ).toEqual(
+        Object.entries(
+          variables as Record<
+            string,
+            { type: string; environment_values: { development: string } }
+          >
+        ).map(([key, variable]) => ({
+          url: `${VARIABLE_URL}${key}`,
+          method: "PUT",
+          authorization: "Bearer knock_st_fake",
+          // Knock requires type on every upsert, and it can't change once set.
+          body: {
+            type: variable.type,
+            environment_values: {
+              development: variable.environment_values.development,
+            },
+          },
+        }))
+      );
+      expect(Object.keys(variables)).toContain("app_url");
+    });
+
+    it("fails when Knock refuses a variable, with Knock's reason", async () => {
+      respond = (url) =>
+        url.startsWith(VARIABLE_URL)
+          ? new Response('{"message":"not found"}', { status: 404 })
+          : new Response("{}", { status: 200 });
+
+      await expect(push(env)).rejects.toThrow(/app_url.*404.*not found/);
+    });
+
     it("replaces Development's default preference set with knock/preferences/default.json", async () => {
       await push(env);
 
       expect(
-        requests.map(({ url, init }) => ({
-          url,
-          method: init?.method,
-          authorization: new Headers(init?.headers).get("authorization"),
-          body: JSON.parse(String(init?.body)),
-        }))
+        requests
+          .filter(
+            ({ url }) =>
+              !url.startsWith(CATEGORY_URL) && !url.startsWith(VARIABLE_URL)
+          )
+          .map(({ url, init }) => ({
+            url,
+            method: init?.method,
+            authorization: new Headers(init?.headers).get("authorization"),
+            body: JSON.parse(String(init?.body)),
+          }))
       ).toEqual([
         {
-          url: "https://control.knock.app/v1/environments/development/defaults",
+          url: DEFAULTS_URL,
           method: "PUT",
           authorization: "Bearer knock_st_fake",
           body: JSON.parse(
@@ -163,13 +279,16 @@ describe("npm run knock:push", () => {
         /knock push/
       );
 
-      expect(requests).toEqual([]);
+      expect(requests.filter(({ url }) => url === DEFAULTS_URL)).toEqual([]);
     });
 
     it("fails when Knock rejects the preference set, with Knock's reason", async () => {
-      knockResponse = new Response('{"message":"invalid preference_set"}', {
-        status: 422,
-      });
+      respond = (url) =>
+        url === DEFAULTS_URL
+          ? new Response('{"message":"invalid preference_set"}', {
+              status: 422,
+            })
+          : new Response("{}", { status: 200 });
 
       await expect(push(env)).rejects.toThrow(/422.*invalid preference_set/);
     });

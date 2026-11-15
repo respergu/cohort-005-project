@@ -1,0 +1,45 @@
+# Checks a pull request's knock/ before it can reach Production Knock.
+# See knock/README.md and ADR 0016. The merge to main runs knock-sync.yml.
+name: Knock validate
+
+on:
+  pull_request:
+    paths:
+      - "knock/**"
+      - "knock.json"
+      # Each workflow's trigger data schema is generated from its zod schema.
+      - "app/lib/notification-workflows.ts"
+      - "scripts/knock-*.ts"
+      - ".github/workflows/knock-*.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Validate knock/
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+
+      # The Knock CLI 1.6.2 needs Node 24 or later.
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+
+      # Offline, so it runs on a fork's pull request too: the generated parts
+      # of knock/ are up to date, and every template output goes through
+      # | escape.
+      - name: Check knock/ is regenerated and escaped
+        run: npx vitest run scripts/knock-content.test.ts
+
+      # Knock validates server-side, which needs the token. A pull request
+      # from a fork gets no secrets, so this step passes with a notice.
+      - name: Validate layouts and workflows with Knock
+        env:
+          KNOCK_SERVICE_TOKEN: ${{ secrets.KNOCK_SERVICE_TOKEN }}
+        run: npx tsx scripts/knock-ci.ts validate

@@ -231,6 +231,42 @@ describe("writeKnockContent", () => {
     });
   });
 
+  it("leaves a workflow.json in the form the Knock CLI writes back, when its generated parts are already up to date", () => {
+    // After a push, the CLI rewrites workflow.json in its own key order and
+    // adds read-only fields. Rewriting it again would dirty the tree on every push.
+    const asTheCliWritesIt =
+      JSON.stringify(
+        {
+          name: "Lesson liked",
+          steps: [
+            {
+              type: "channel",
+              template: { markdown_body: "Liked" },
+              ref: "in_app_feed_1",
+              channel_type: "in_app_feed",
+              channel_key: "feed-key",
+            },
+          ],
+          categories: ["lesson-liked"],
+          trigger_data_json_schema: {
+            properties: { course_title: { minLength: 1, type: "string" } },
+            required: ["course_title"],
+            type: "object",
+          },
+          __readonly: { key: "lesson-liked", active: true, valid: true },
+          $schema: "https://schemas.knock.app/cli/workflow.json",
+        },
+        null,
+        2
+      ) + "\n";
+    const path = join(knockDir, "workflows/lesson-liked/workflow.json");
+    mkdirSync(dirname(path), { recursive: true });
+    writeFileSync(path, asTheCliWritesIt);
+
+    expect(writeKnockContent(knockDir, workflows)).toEqual([]);
+    expect(readFileSync(path, "utf8")).toBe(asTheCliWritesIt);
+  });
+
   it("refuses a workflow in knock/ that has no zod schema, so a misspelt key can't slip through", () => {
     writeJson("workflows/lesson-liked/workflow.json", {
       name: "Lesson liked",

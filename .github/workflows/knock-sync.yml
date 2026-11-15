@@ -1,0 +1,54 @@
+# Keeps Production Knock in step with main. On every merge, in order:
+#   1. the preference category catalog, knock/variables.json and the default
+#      preference set, in both environments (they go live at once)
+#   2. everything in knock/ pushed to Development and committed as
+#      "Sync with git commit <sha>"
+#   3. knock commit promote --to=production, the only step that changes
+#      Production's workflows
+# See knock/README.md and ADR 0016. scripts/knock-ci.ts holds the steps.
+name: Knock sync
+
+on:
+  # Every merge, not only those that touch knock/: Development is put back to
+  # main's content each time, and a stale generated schema fails here before
+  # it reaches Production.
+  push:
+    branches: [main]
+  # Re-sync by hand, e.g. right after npm run knock:setup set up Production.
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# A second merge waits for the first sync to finish, so they never interleave.
+concurrency:
+  group: knock-sync
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    name: Sync Knock with main
+    # workflow_dispatch can be started from any branch. Only main syncs.
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+
+      # The Knock CLI 1.6.2 needs Node 24 or later.
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+
+      - name: Check knock/ is regenerated and escaped
+        run: npx vitest run scripts/knock-content.test.ts
+
+      # After a push the CLI rewrites knock/ files in Knock's own form.
+      # Nothing checks or commits the tree after this step.
+      - name: Push to Development and promote to Production
+        env:
+          KNOCK_SERVICE_TOKEN: ${{ secrets.KNOCK_SERVICE_TOKEN }}
+        run: npx tsx scripts/knock-ci.ts sync
