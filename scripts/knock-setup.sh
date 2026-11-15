@@ -203,7 +203,8 @@ finish() {
 # per fork: Development first, then Production as step 1 of going live.
 
 # The channel keys the knock/ workflows send through. Change one only together
-# with every matching channel_key in knock/workflows/*/workflow.json.
+# with knock/channels.json, then run npm run knock:generate to update every
+# channel_key in knock/workflows.
 IN_APP_CHANNEL_KEY="in-app" # the in-app feed channel Knock creates (confirmed with knock channel list)
 EMAIL_CHANNEL_KEY="postmark"      # the email channel stage 3 creates
 
@@ -415,7 +416,7 @@ stage_response_filter() {
   if ! confirm "Is that channel's key $IN_APP_CHANNEL_KEY? (It's shown on the channel's page)"; then
     warn "The knock/ workflows send their in-app steps to $IN_APP_CHANNEL_KEY."
     ask _SEEN_IN_APP_KEY "Type the key Knock shows:" || _SEEN_IN_APP_KEY="unknown"
-    SKIPPED+=("In-app channel key is $_SEEN_IN_APP_KEY, not $IN_APP_CHANNEL_KEY: change IN_APP_CHANNEL_KEY in scripts/knock-setup.sh and every in-app channel_key in knock/workflows to match")
+    SKIPPED+=("In-app channel key is $_SEEN_IN_APP_KEY, not $IN_APP_CHANNEL_KEY: change IN_APP_CHANNEL_KEY in scripts/knock-setup.sh and in_app_feed in knock/channels.json to match, then run npm run knock:generate")
   fi
   step "Under Environment configurations, click $env, then open Advanced."
   step "Paste this into API response filter, then click Save changes:"
