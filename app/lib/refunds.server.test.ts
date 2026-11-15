@@ -15,6 +15,11 @@ import {
   raiseRefundRequest,
 } from "./refunds.server";
 import { listOutboxRows } from "./notification-outbox.server";
+import { createNotificationSender } from "./notification-sender.server";
+import {
+  fakeNotificationTransport,
+  type FakeNotificationTransport,
+} from "~/test/fake-notification-transport";
 
 type TestDb = ReturnType<typeof createTestDb>;
 
@@ -303,6 +308,60 @@ describe("the Refund Request raised Notification", () => {
       sam.knockId,
     ]);
   });
+
+  it.each([
+    [
+      "a 429",
+      (transport: FakeNotificationTransport) => transport.respondWith(429),
+    ],
+    [
+      "a 500",
+      (transport: FakeNotificationTransport) => transport.respondWith(500),
+    ],
+    [
+      "a 400",
+      (transport: FakeNotificationTransport) => transport.respondWith(400),
+    ],
+    [
+      "a timeout",
+      (transport: FakeNotificationTransport) => transport.timeOut(),
+    ],
+    [
+      "no connection",
+      (transport: FakeNotificationTransport) => transport.loseConnection(),
+    ],
+    [
+      "an unexpected throw",
+      (transport: FakeNotificationTransport) =>
+        transport.failWith(
+          new TypeError("Cannot read properties of undefined")
+        ),
+    ],
+  ])(
+    "keeps the Refund Request when its Notification's send gets %s",
+    async (_, fail) => {
+      const purchase = buyForSelf(base.user.id);
+      const result = raiseRefundRequest(
+        db,
+        purchase.id,
+        base.user.id,
+        "It was not what I expected.",
+        NOW
+      );
+      if (!result.ok) throw new Error(result.error);
+      const transport = fakeNotificationTransport();
+      fail(transport);
+
+      await createNotificationSender(db, transport, { error: () => {} }).send(
+        result.outboxRowIds,
+        NOW
+      );
+
+      expect(transport.attempts).toHaveLength(1);
+      expect(listRefundRequestsForBuyer(db, base.user.id)).toHaveLength(1);
+      expect(listOutboxRows(db)).toHaveLength(1);
+    }
+  );
 
   it("keeps neither the Refund Request nor the Notification if the transaction fails", () => {
     // A course with no title breaks the workflow's schema, which throws

@@ -420,8 +420,12 @@ export const notificationOutbox = sqliteTable("notification_outbox", {
     .notNull()
     .$type<OutboxRowStatus>()
     .default(OutboxRowStatus.Waiting),
-  // Failed sends so far.
+  // Failed sends so far, counted again from 0 when a parked row is re-sent.
   attempts: integer("attempts").notNull().default(0),
+  // When a waiting row that failed may be tried again (ISO). Null when it can
+  // go at once: it hasn't failed yet, or it's parked.
+  nextAttemptAt: text("next_attempt_at"),
+  // The 24h expiry counts from here, even across a re-send.
   createdAt: text("created_at")
     .notNull()
     .$defaultFn(() => new Date().toISOString()),
