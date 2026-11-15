@@ -32,6 +32,35 @@ export const notificationWorkflows = {
       reason: z.string().min(1),
     })
     .strict(),
+
+  // ── Seat claims and New Enrollment (#49) ──
+  /** To the Team Admin when a Student claims a Seat on their Team Licence. */
+  "seat-claimed": z
+    .object({
+      ...everyTrigger,
+      /** The Team Licence (its Purchase id): Knock's batch key. */
+      team_licence_id: z.number().int().min(1),
+      /** Unclaimed Seats left on the Team Licence after this claim. */
+      seats_left: z.number().int().min(0),
+      /**
+       * Only on the claim of the final Seat, which makes it Last Seat claimed.
+       * The other claims leave the key out: Knock's batch merge keeps the
+       * latest value of each key, so a later `false` would hide it.
+       */
+      last_seat: z.literal(true).optional(),
+    })
+    .strict(),
+  /**
+   * To the course's Instructor when a Student gets an Enrollment, from a
+   * Claimed Seat or an Individual Purchase.
+   */
+  "new-enrollment": z
+    .object({
+      ...everyTrigger,
+      /** Knock's batch key. */
+      course_id: z.number().int().min(1),
+    })
+    .strict(),
 } satisfies Record<string, z.ZodType<NotificationData>>;
 
 export type WorkflowKey = keyof typeof notificationWorkflows;
