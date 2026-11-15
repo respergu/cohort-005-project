@@ -252,84 +252,92 @@ describe("the bell's feed", () => {
     });
   });
 
-  describe("after Knock answers 401", () => {
-    let freshToken: string;
+  // #22 saw Knock answer a token it couldn't verify with 400
+  // invalid_user_token, so an expired one may come back as a 400 too.
+  describe.each([401, 400] as const)(
+    "after Knock rejects the token with %i invalid_user_token",
+    (status) => {
+      let freshToken: string;
 
-    beforeEach(() => {
-      freshToken = fakeUserToken(
-        KNOCK_ID,
-        Math.floor(Date.now() / 1000) + 7200,
-        "fresh"
-      );
-    });
-
-    it("gets a fresh token from /api/knock-token and reads the feed with it", async () => {
-      api.setFeed([{ id: "n1" }]);
-      api.rejectToken(firstToken);
-      api.refreshWith(KNOCK_ID, freshToken);
-      const feed = openBell();
-
-      await feed.load();
-
-      expect(api.requests).toContainEqual(
-        expect.objectContaining({ method: "POST", path: "/api/knock-token" })
-      );
-      expect(api.knockRequests().at(-1)).toMatchObject({
-        method: "GET",
-        path: `/v1/users/${KNOCK_ID}/feeds/${CHANNEL}`,
-        userToken: freshToken,
+      beforeEach(() => {
+        freshToken = fakeUserToken(
+          KNOCK_ID,
+          Math.floor(Date.now() / 1000) + 7200,
+          "fresh"
+        );
       });
-      expect(feed.getSnapshot()).toMatchObject({
-        status: "ready",
-        unreadCount: 1,
+
+      it("gets a fresh token from /api/knock-token and reads the feed with it", async () => {
+        api.setFeed([{ id: "n1" }]);
+        api.rejectToken(firstToken, status);
+        api.refreshWith(KNOCK_ID, freshToken);
+        const feed = openBell();
+
+        await feed.load();
+
+        expect(api.requests).toContainEqual(
+          expect.objectContaining({ method: "POST", path: "/api/knock-token" })
+        );
+        expect(api.knockRequests().at(-1)).toMatchObject({
+          method: "GET",
+          path: `/v1/users/${KNOCK_ID}/feeds/${CHANNEL}`,
+          userToken: freshToken,
+        });
+        expect(feed.getSnapshot()).toMatchObject({
+          status: "ready",
+          unreadCount: 1,
+        });
       });
-    });
 
-    it("won't use a token for someone else, if the session's user changed", async () => {
-      api.setFeed([{ id: "n1" }]);
-      api.rejectToken(firstToken);
-      api.refreshWith("someone-else", freshToken);
-      const feed = openBell();
+      it("won't use a token for someone else, if the session's user changed", async () => {
+        api.setFeed([{ id: "n1" }]);
+        api.rejectToken(firstToken, status);
+        api.refreshWith("someone-else", freshToken);
+        const feed = openBell();
 
-      await feed.load();
+        await feed.load();
 
-      expect(api.knockRequests().map((r) => r.userToken)).not.toContain(
-        freshToken
-      );
-      expect(feed.getSnapshot().status).toBe("error");
-    });
+        expect(api.knockRequests().map((r) => r.userToken)).not.toContain(
+          freshToken
+        );
+        expect(feed.getSnapshot().status).toBe("error");
+      });
 
-    it("sends a read again with a fresh token, lowering the count once", async () => {
-      api.setFeed([{ id: "n1" }, { id: "n2" }]);
-      const feed = openBell();
-      await feed.load();
-      api.rejectToken(firstToken);
-      api.refreshWith(KNOCK_ID, freshToken);
+      it("sends a read again with a fresh token, lowering the count once", async () => {
+        api.setFeed([{ id: "n1" }, { id: "n2" }]);
+        const feed = openBell();
+        await feed.load();
+        api.rejectToken(firstToken, status);
+        api.refreshWith(KNOCK_ID, freshToken);
 
-      await feed.markRead("n1");
+        await feed.markRead("n1");
 
-      expect(
-        api
-          .knockRequests()
-          .filter((r) => r.path === "/v1/messages/batch/read")
-          .at(-1)
-      ).toMatchObject({ userToken: freshToken, body: { message_ids: ["n1"] } });
-      expect(feed.getSnapshot().unreadCount).toBe(1);
+        expect(
+          api
+            .knockRequests()
+            .filter((r) => r.path === "/v1/messages/batch/read")
+            .at(-1)
+        ).toMatchObject({
+          userToken: freshToken,
+          body: { message_ids: ["n1"] },
+        });
+        expect(feed.getSnapshot().unreadCount).toBe(1);
 
-      await feed.load();
-      expect(feed.getSnapshot().unreadCount).toBe(1);
-    });
+        await feed.load();
+        expect(feed.getSnapshot().unreadCount).toBe(1);
+      });
 
-    it("shows an error when there's no fresh token to be had", async () => {
-      api.setFeed([{ id: "n1" }]);
-      api.rejectToken(firstToken);
-      const feed = openBell();
+      it("shows an error when there's no fresh token to be had", async () => {
+        api.setFeed([{ id: "n1" }]);
+        api.rejectToken(firstToken, status);
+        const feed = openBell();
 
-      await feed.load();
+        await feed.load();
 
-      expect(feed.getSnapshot().status).toBe("error");
-    });
-  });
+        expect(feed.getSnapshot().status).toBe("error");
+      });
+    }
+  );
 });
 
 describe("unreadBadgeLabel", () => {

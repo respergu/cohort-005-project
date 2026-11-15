@@ -2,10 +2,10 @@ import Knock from "@knocklabs/client";
 import { z } from "zod";
 
 // ─── Knock in the browser ───
-// The bell (and, from #47, the /settings Notifications section) talks to
-// Knock straight from the browser, with the public key and a user token the
-// server signed. The layout loader puts a KnockClientConfig in its data for
-// whoever is signed in, or null when nobody is or Knock isn't set up.
+// The bell and the /settings Notifications section talk to Knock straight
+// from the browser, with the public key and a user token the server signed.
+// The layout loader puts a KnockClientConfig in its data for whoever is
+// signed in, or null when nobody is or Knock isn't set up.
 
 /** What the browser needs to talk to Knock as the signed-in user. */
 export type KnockClientConfig = {
@@ -18,17 +18,20 @@ export type KnockClientConfig = {
   feedChannelId: string;
 };
 
+/** How Knock refused a call: the HTTP status, and the `code` in its body if it sent one. */
+export type KnockRefusal = { status: number; code: string | undefined };
+
 export type KnockConnection = {
   knock: Knock;
   knockId: string;
   /**
-   * Runs a Knock call. If Knock answers 401, gets a fresh token from
+   * Runs a Knock call. If Knock won't take the token, gets a fresh one from
    * POST /api/knock-token, signs in with it and runs the call once more.
-   * `statusOf` reads the HTTP status from the call's result, if it failed.
+   * `refusalOf` reads how Knock refused the call from its result, if it did.
    */
   withFreshToken<T>(
     call: () => Promise<T>,
-    statusOf: (result: T) => number | undefined
+    refusalOf: (result: T) => KnockRefusal | undefined
   ): Promise<T>;
   /** Stops the token refresh timer and drops the feed. */
   disconnect(): void;
@@ -69,9 +72,11 @@ export function connectKnock(config: KnockClientConfig): KnockConnection {
   return {
     knock,
     knockId: config.knockId,
-    async withFreshToken(call, statusOf) {
+    async withFreshToken(call, refusalOf) {
       const result = await call();
-      if (statusOf(result) !== 401 || !(await refreshToken())) return result;
+      if (!isRejectedToken(refusalOf(result)) || !(await refreshToken())) {
+        return result;
+      }
       return call();
     },
     disconnect: () => knock.logout(),
@@ -102,10 +107,29 @@ export async function requestKnockUserToken(
   }
 }
 
-const failedRequest = z.object({ response: z.object({ status: z.number() }) });
+// Knock answers 401 to an expired token. #22 saw it answer 400
+// invalid_user_token to one it couldn't verify, so an expired token may come
+// back as a 400 too. Any other 400 is about the request, not the token.
+function isRejectedToken(refusal: KnockRefusal | undefined): boolean {
+  if (!refusal) return false;
+  return (
+    refusal.status === 401 ||
+    (refusal.status === 400 && refusal.code === "invalid_user_token")
+  );
+}
 
-/** The HTTP status of a failed @knocklabs/client call, from the error it hands back. */
-export function knockErrorStatus(value: unknown): number | undefined {
+const failedRequest = z.object({
+  response: z.object({ status: z.number(), data: z.unknown() }),
+});
+const errorBody = z.object({ code: z.string() });
+
+/** How Knock refused a @knocklabs/client call, from the error it hands back. */
+export function knockRefusal(value: unknown): KnockRefusal | undefined {
   const parsed = failedRequest.safeParse(value);
-  return parsed.success ? parsed.data.response.status : undefined;
+  if (!parsed.success) return undefined;
+  const body = errorBody.safeParse(parsed.data.response.data);
+  return {
+    status: parsed.data.response.status,
+    code: body.success ? body.data.code : undefined,
+  };
 }

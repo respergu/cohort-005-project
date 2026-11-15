@@ -1,8 +1,9 @@
 import { useRef, useEffect } from "react";
-import { useFetcher } from "react-router";
+import { useFetcher, useRouteLoaderData } from "react-router";
 import { toast } from "sonner";
 import { z } from "zod";
 import type { Route } from "./+types/settings";
+import type { loader as layoutLoader } from "./layout.app";
 import { getCurrentUserId } from "~/lib/session";
 import { parseFormData } from "~/lib/validation";
 import { Card, CardContent, CardHeader } from "~/components/ui/card";
@@ -17,6 +18,7 @@ import { db } from "~/db";
 import { eq } from "drizzle-orm";
 import { formatPrice } from "~/lib/utils";
 import { listRefundRequestsForBuyer } from "~/lib/refunds.server";
+import { NotificationPreferences } from "~/components/notification-preferences";
 
 const settingsSchema = z.object({
   name: z.string().trim().min(1, "Name cannot be empty."),
@@ -104,6 +106,10 @@ export default function Settings({ loaderData }: Route.ComponentProps) {
   ).length;
   const fetcher = useFetcher();
   const nameInputRef = useRef<HTMLInputElement>(null);
+  // The bell's Knock config and token, and Team Admin membership, from the
+  // layout's loader, so nothing is signed or looked up twice.
+  const layout = useRouteLoaderData<typeof layoutLoader>("routes/layout.app");
+  const knock = layout?.knock ?? null;
 
   useEffect(() => {
     if (fetcher.state === "idle" && fetcher.data?.success) {
@@ -185,6 +191,26 @@ export default function Settings({ loaderData }: Route.ComponentProps) {
               {fetcher.state !== "idle" ? "Saving..." : "Save Changes"}
             </Button>
           </fetcher.Form>
+        </CardContent>
+      </Card>
+
+      <Card id="notifications" className="mt-8 max-w-md scroll-mt-6">
+        <CardHeader>
+          <h2 className="text-lg font-semibold">Notifications</h2>
+          <p className="text-sm text-muted-foreground">
+            Choose what Cadence tells you about, in your Notification Feed and
+            by email.
+          </p>
+        </CardHeader>
+        <CardContent>
+          <NotificationPreferences
+            key={knock?.knockId ?? "no-knock"}
+            config={knock}
+            person={{
+              role: user.role,
+              isTeamAdmin: layout?.isTeamAdmin ?? false,
+            }}
+          />
         </CardContent>
       </Card>
 
