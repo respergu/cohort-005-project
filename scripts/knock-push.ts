@@ -76,9 +76,57 @@ export async function knockPush({
     );
   }
   log("Pushed the default preference set to Development.");
-  log(
-    "knock/variables.json isn't pushed from a branch: a variable push writes every environment's values, so only the merge-to-main job does it."
-  );
+
+  await setDevelopmentVariables({ root, token, fetch, log });
+}
+
+const VARIABLES_URL = "https://control.knock.app/v1/variables";
+
+/**
+ * Sets Development's value of each variable in knock/variables.json, and
+ * nothing else. Knock's upsert leaves every attribute and environment a
+ * request leaves out unchanged, so Production's value and the default (which
+ * Production falls back on) are never touched from a branch. Only the
+ * merge-to-main job pushes the whole of knock/variables.json.
+ */
+async function setDevelopmentVariables({
+  root,
+  token,
+  fetch,
+  log,
+}: {
+  root: string;
+  token: string;
+  fetch: typeof globalThis.fetch;
+  log: (line: string) => void;
+}): Promise<void> {
+  const variables = z
+    .record(
+      z.object({
+        environment_values: z.object({ development: z.string().min(1) }),
+      })
+    )
+    .parse(readJson(join(root, "knock/variables.json")));
+  for (const [key, variable] of Object.entries(variables)) {
+    const development = variable.environment_values.development;
+    const response = await fetch(
+      `${VARIABLES_URL}/${encodeURIComponent(key)}`,
+      {
+        method: "PUT",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ environment_values: { development } }),
+      }
+    );
+    if (!response.ok) {
+      throw new Error(
+        `Knock refused Development's value of variable ${key}: ${response.status} ${await response.text()}. A variable that doesn't exist yet is created by the merge-to-main job's variable push.`
+      );
+    }
+    log(`Set Development's ${key} to ${development}.`);
+  }
 }
 
 /** Development's default preference set, in Knock's Management API. */

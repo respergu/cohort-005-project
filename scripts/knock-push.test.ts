@@ -65,6 +65,7 @@ const fakeFetch: typeof fetch = async (input, init) => {
 const DEFAULTS_URL =
   "https://control.knock.app/v1/environments/development/defaults";
 const CATEGORY_URL = "https://control.knock.app/v1/preference_categories/";
+const VARIABLE_URL = "https://control.knock.app/v1/variables/";
 
 /** Every category knock/ names: the default preference set's and each workflow's. */
 function categoriesInKnockDir() {
@@ -199,12 +200,57 @@ describe("npm run knock:push", () => {
       expect(logged("args")).toBeUndefined();
     });
 
+    it("sets only Development's value of each variable in knock/variables.json, leaving Production's and the default alone", async () => {
+      const variables = JSON.parse(
+        readFileSync(join(root, "knock/variables.json"), "utf8")
+      );
+
+      await push(env);
+
+      expect(
+        requests
+          .filter(({ url }) => url.startsWith(VARIABLE_URL))
+          .map(({ url, init }) => ({
+            url,
+            method: init?.method,
+            authorization: new Headers(init?.headers).get("authorization"),
+            body: JSON.parse(String(init?.body)),
+          }))
+      ).toEqual(
+        Object.entries(variables).map(([key, variable]) => ({
+          url: `${VARIABLE_URL}${key}`,
+          method: "PUT",
+          authorization: "Bearer knock_st_fake",
+          body: {
+            environment_values: {
+              development: (
+                variable as { environment_values: { development: string } }
+              ).environment_values.development,
+            },
+          },
+        }))
+      );
+      expect(Object.keys(variables)).toContain("app_url");
+    });
+
+    it("fails when Knock refuses a variable, with Knock's reason", async () => {
+      respond = (url) =>
+        url.startsWith(VARIABLE_URL)
+          ? new Response('{"message":"not found"}', { status: 404 })
+          : new Response("{}", { status: 200 });
+
+      await expect(push(env)).rejects.toThrow(/app_url.*404.*not found/);
+    });
+
     it("replaces Development's default preference set with knock/preferences/default.json", async () => {
       await push(env);
 
       expect(
         requests
-          .filter(({ url }) => !url.startsWith(CATEGORY_URL))
+          .filter(
+            ({ url }) =>
+              !url.startsWith(CATEGORY_URL) && !url.startsWith(VARIABLE_URL)
+          )
           .map(({ url, init }) => ({
             url,
             method: init?.method,
