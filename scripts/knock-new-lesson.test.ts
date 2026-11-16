@@ -40,11 +40,11 @@ describe("the New lesson workflow", () => {
     expect(workflow.categories).toEqual(["new-lesson"]);
   });
 
-  it("batches per course, for a fixed hour from the first lesson, with no early flush", () => {
+  it("batches per course, for a fixed minute from the first lesson, with no early flush", () => {
     expect(workflow.steps[0]?.settings).toEqual({
       batch_key: "data.course_id",
       batch_window_type: "fixed",
-      batch_window: { unit: "hours", value: 1 },
+      batch_window: { unit: "minutes", value: 1 },
       batch_execution_mode: "accumulate",
       batch_order: "asc",
       workflow_version_mode: "latest",

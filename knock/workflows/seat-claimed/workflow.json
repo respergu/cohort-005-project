@@ -1,6 +1,6 @@
 {
   "name": "Seat claims",
-  "description": "To the Team Admin when Students claim Seats on their Team Licence, batched per Team Licence for an hour. Branches on data.last_seat: Last Seat claimed (Feed and email) when the batch holds the final claim, otherwise Seat claimed (Feed only). Triggered by claimSeat.",
+  "description": "To the Team Admin when Students claim Seats on their Team Licence, batched per Team Licence for a minute. Branches on data.last_seat: Last Seat claimed (Feed and email) when the batch holds the final claim, otherwise Seat claimed (Feed only). Triggered by claimSeat.",
   "steps": [
     {
       "type": "batch",
@@ -10,7 +10,7 @@
         "batch_window_type": "fixed",
         "batch_key": "data.team_licence_id",
         "batch_window": {
-          "unit": "hours",
+          "unit": "minutes",
           "value": 1
         },
         "batch_execution_mode": "accumulate",

@@ -6,11 +6,11 @@ Cadence never calls Knock from the request that causes a Notification. The domai
 
 - **Inline after the write, log failures.** Simplest, but a Knock outage or a crash between commit and call drops the Notification.
 - **Inline with a few in-request retries.** Fewer drops, but the action slows while Knock struggles, and a crash still drops it.
-- **Batching in the outbox.** Rejected in favour of Knock's Batch step (per recipient, fixed 1-hour window, no flush of the first event), which keeps the outbox to "get each trigger to Knock".
+- **Batching in the outbox.** Rejected in favour of Knock's Batch step (per recipient, fixed 1-minute window, no flush of the first event), which keeps the outbox to "get each trigger to Knock".
 
 ## Consequences
 
 - The outbox is a delivery queue, not Cadence's record of Notifications. A row is deleted as soon as Knock accepts it, so there is no "sent" state. Anyone checking whether a person was told looks in Knock, which keeps feed items forever and message logs for 30 days on the Free plan.
 - Retries stop after about an hour, then the row is parked as failed and logged, to be re-sent by hand. A stale Notification is worse than a missing one, so the sweep deletes every row, waiting or parked, 24 hours after it was written, and logs that it did. A row that a crash left behind during a long outage is dropped instead of sent late. Every send and re-send stays inside Knock's 24-hour idempotency window, so none can deliver the same Notification twice.
 - The idempotency key is a random UUID, not the row id. A reseed reuses row ids, and Knock would replay the old response and silently drop the new trigger.
-- Who gets told is decided when the event happens. Knock's batch then delivers to whoever was triggered, even if, say, an Enrollment ends before the hour closes.
+- Who gets told is decided when the event happens. Knock's batch then delivers to whoever was triggered, even if, say, an Enrollment ends before the batch window closes.

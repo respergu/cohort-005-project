@@ -76,6 +76,50 @@ describe("knock/", () => {
     expect(locked["refund-request-decided"]).toEqual({ refunds: true, locked: true });
   });
 
+  // Batched Notifications go out a minute after the first event for their
+  // batch key, so a burst becomes one Notification without making anyone
+  // wait long for it.
+  it("batches every batched workflow for a fixed minute from the first event, with no early flush", () => {
+    const workflow = z.object({
+      steps: z.array(
+        z.object({ type: z.string(), settings: z.record(z.unknown()).optional() })
+      ),
+    });
+    const windows = Object.fromEntries(
+      readdirSync(join(KNOCK_DIR, "workflows")).flatMap((key) => {
+        const { steps } = workflow.parse(
+          JSON.parse(
+            readFileSync(join(KNOCK_DIR, "workflows", key, "workflow.json"), "utf8")
+          )
+        );
+        const batch = steps.find((step) => step.type === "batch")?.settings;
+        if (!batch) return [];
+        return [
+          [
+            key,
+            {
+              batch_window_type: batch.batch_window_type,
+              batch_window: batch.batch_window,
+              batch_execution_mode: batch.batch_execution_mode,
+            },
+          ],
+        ];
+      })
+    );
+    const oneMinute = {
+      batch_window_type: "fixed",
+      batch_window: { unit: "minutes", value: 1 },
+      batch_execution_mode: "accumulate",
+    };
+
+    expect(windows).toEqual({
+      "new-enrollment": oneMinute,
+      "new-lesson": oneMinute,
+      "new-question": oneMinute,
+      "seat-claimed": oneMinute,
+    });
+  });
+
   describe("the default preference set", () => {
     const defaults = z
       .object({

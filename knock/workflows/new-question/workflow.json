@@ -1,20 +1,20 @@
 {
   "name": "New Question",
-  "description": "To the course's Instructor when anyone else asks a Question, batched per course for an hour. Triggered by createComment.",
+  "description": "To the course's Instructor when anyone else asks a Question, batched per course for a minute. Triggered by createComment.",
   "steps": [
     {
       "type": "batch",
       "ref": "batch_1",
       "settings": {
+        "workflow_version_mode": "latest",
         "batch_order": "asc",
         "batch_window_type": "fixed",
         "batch_key": "data.course_id",
         "batch_window": {
-          "unit": "hours",
+          "unit": "minutes",
           "value": 1
         },
-        "batch_execution_mode": "accumulate",
-        "workflow_version_mode": "latest"
+        "batch_execution_mode": "accumulate"
       }
     },
     {

@@ -12,7 +12,7 @@ In Knock, each Cadence user is known by a random UUID stored on their `users` ro
 
 - Changing the Knock id later loses every feed and every saved preference.
 - A user who has never received a Notification doesn't exist in Knock. Their feed still reads as empty, but anything that writes to them first, such as saving preferences, may need to identify them.
-- If an email changes while a batch hour is still open, that batch goes to the old address.
+- If an email changes while a batch window is still open, that batch goes to the old address.
 - One trigger takes at most 1,000 recipients, so a larger audience is written as several outbox rows, each with its own UUID.
 - Knock holds only name and email, never role, avatar or the numeric Cadence id.
 - By default Knock's feed returns each actor's full user record, email included, to the recipient's browser. So in every environment the in-app channel's API response filter is set to `actor: { only: ["id", "name"] }`. Otherwise a Reply would show the replier's email to the Question's author.

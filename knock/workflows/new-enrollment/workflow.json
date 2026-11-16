@@ -1,20 +1,20 @@
 {
   "name": "New Enrollment",
-  "description": "To the course's Instructor when Students enrol, from Claimed Seats and Individual Purchases, batched per course for an hour. Email is opt-in: the default preference set turns it off for new-enrollment. Triggered by claimSeat and enrollUser.",
+  "description": "To the course's Instructor when Students enrol, from Claimed Seats and Individual Purchases, batched per course for a minute. Email is opt-in: the default preference set turns it off for new-enrollment. Triggered by claimSeat and enrollUser.",
   "steps": [
     {
       "type": "batch",
       "ref": "batch_1",
       "settings": {
-        "workflow_version_mode": "latest",
         "batch_order": "asc",
         "batch_window_type": "fixed",
         "batch_key": "data.course_id",
         "batch_window": {
-          "unit": "hours",
+          "unit": "minutes",
           "value": 1
         },
-        "batch_execution_mode": "accumulate"
+        "batch_execution_mode": "accumulate",
+        "workflow_version_mode": "latest"
       }
     },
     {
