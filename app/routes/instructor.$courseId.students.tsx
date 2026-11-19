@@ -2,7 +2,6 @@ import { Link } from "react-router";
 import type { Route } from "./+types/instructor.$courseId.students";
 import { getCurrentUserId } from "~/lib/session";
 import { UserRole } from "~/db/schema";
-import { isLapsed } from "~/lib/enrollments";
 import { Card, CardContent } from "~/components/ui/card";
 import { Button } from "~/components/ui/button";
 import { AlertTriangle, ArrowLeft, Users, Award } from "lucide-react";
@@ -296,7 +295,8 @@ export async function loader({ params, request }: Route.LoaderArgs) {
       email: studentUser?.email ?? "",
       enrolledAt: enrollment.enrolledAt,
       completedAt: enrollment.completedAt,
-      lapsed: isLapsed(enrollment),
+      // Lapsed: still on the roster, but no longer has an Enrollment.
+      lapsed: enrollment.enrollmentId === null,
       progress,
       quizScores,
     };

@@ -12,7 +12,7 @@ vi.mock("~/lib/session", () => ({
 const mockFetch = vi.fn();
 vi.stubGlobal("fetch", mockFetch);
 
-import { resolveCountry } from "./country.server";
+import { getDevCountry, resolveCountry } from "./country.server";
 
 function makeRequest(headers: Record<string, string> = {}): Request {
   return new Request("http://localhost:3000", { headers });
@@ -84,5 +84,23 @@ describe("resolveCountry", () => {
     );
     expect(mockFetch).not.toHaveBeenCalled();
     expect(result).toBeNull();
+  });
+});
+
+// The DevUI panel shows the tier for this country, so it must read the dev
+// override exactly as pricing does.
+describe("getDevCountry", () => {
+  beforeEach(() => {
+    mockSession.clear();
+  });
+
+  it("normalizes the dev override to uppercase", async () => {
+    mockSession.set("devCountry", "pl");
+    expect(await getDevCountry(makeRequest())).toBe("PL");
+  });
+
+  it("ignores a dev override that isn't exactly 2 characters", async () => {
+    mockSession.set("devCountry", "USA");
+    expect(await getDevCountry(makeRequest())).toBeNull();
   });
 });

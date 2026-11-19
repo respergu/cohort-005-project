@@ -2,7 +2,6 @@ import { data } from "react-router";
 import { z } from "zod";
 import type { Route } from "./+types/api.video-tracking";
 import { getCurrentUserId } from "~/lib/session";
-import { parseJsonBody } from "~/lib/validation";
 import { db } from "~/db";
 import { videoWatchEvents } from "~/db/schema";
 
@@ -18,7 +17,9 @@ export async function action({ request }: Route.ActionArgs) {
     throw data("Unauthorized", { status: 401 });
   }
 
-  const parsed = await parseJsonBody(request, videoTrackingSchema);
+  // A body that isn't JSON is a bad request, not a server error.
+  const body: unknown = await request.json().catch(() => null);
+  const parsed = videoTrackingSchema.safeParse(body);
 
   if (!parsed.success) {
     throw data("Invalid parameters", { status: 400 });

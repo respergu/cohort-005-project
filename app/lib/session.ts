@@ -31,12 +31,6 @@ export async function destroySession(request: Request) {
   return sessionStorage.destroySession(session);
 }
 
-export async function getDevCountry(request: Request): Promise<string | null> {
-  const session = await getSession(request);
-  const country = session.get("devCountry");
-  return typeof country === "string" ? country : null;
-}
-
 export async function setDevCountry(request: Request, country: string | null) {
   const session = await getSession(request);
   if (country) {

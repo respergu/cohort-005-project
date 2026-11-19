@@ -8,7 +8,8 @@ import {
   tolerateNotificationFailure,
 } from "~/lib/notifications.server";
 import { Toaster } from "sonner";
-import { getCurrentUserId, getDevCountry } from "~/lib/session";
+import { getCurrentUserId } from "~/lib/session";
+import { getDevCountry } from "~/lib/country.server";
 import { getCountryTierInfo, COUNTRIES } from "~/lib/ppp";
 import { eq, and, or, sql, desc } from "drizzle-orm";
 import { db } from "~/db";
